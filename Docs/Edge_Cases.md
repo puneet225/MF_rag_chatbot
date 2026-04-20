@@ -1,25 +1,63 @@
 # Edge Cases & Failure Scenarios
 
-This document outlines scenarios and edge cases that the current architecture and implementation of the HDFC Mutual Fund FAQ Assistant may struggle to handle or fail completely. These are based on the system constraints defined in the `Problem_statement.md` and the architecture in `rag-architecture.md`.
+This document outlines scenarios and edge cases relevant to the HDFC Mutual Fund FAQ Assistant's architecture and constraints. 
 
-## 1. Data Ingestion & Source Reliability
-*   **Target Website Structural Changes (DOM changes):** The ingestion pipeline relies on Playwright to scrape HTML from Groww. If Groww updates their DOM structure, class names, or obfuscates data, the `Html2TextTransformer` might extract unstructured noise, leading to garbage data in ChromaDB.
-*   **Dead Links (404s):** The HDFC scheme URLs are hardcoded in `ingest_data.py`. If Groww changes a URL slug natively, the scraper will ingest a 404 page into the vector database, silently corrupting the knowledge base.
-*   **Database Locking during Re-ingestion:** If the offline `ingest_data.py` script attempts to write to ChromaDB at the exact same moment the FastAPI backend is reading from it for a user query, it could result in SQLite `database is locked` errors, crashing the API request.
+Following the implementation of the production-grade architecture (Sprints 1–4), many critical vulnerabilities have been resolved. This document tracks both the **Mitigated Risks** (to prevent regression) and the **Open / Future Risk Areas** (for future hardening).
 
-## 2. PII Collection Violations
-*   **Accidental PII in Prompts:** The constraints explicitly forbid processing PAN, Aadhaar, or Account numbers. However, if a user inputs their query as `"My PAN is ABCDE1234F, what is the exit load for HDFC Flexi Cap?"`, the system currently has no pre-processing firewall. It will send the PII to Gemini and persist it in the LangGraph memory state (`thread_id`), violating the constraint.
+---
 
-## 3. Strict "Facts-Only" & Constraints Adherence
-*   **Compound "Sneaky" Queries:** A query like *"What is the expense ratio of HDFC Mid Cap and HDFC Flexi Cap, and which is better?"* might pass the Intent Node because it contains factual requests, but the Generation node might violate the "no comparisons" rule while attempting to answer all parts of the prompt in under 3 sentences.
-*   **Information Void (Missing Facts):** If a user asks a highly specific technical fact that is simply not present on the Groww landing page (e.g., obscure NRI tax implications), the Retriever might fetch the closest semantic match, causing the Generation Node to potentially hallucinate or force-fit an irrelevant answer instead of aggressively stating "I don't know."
+## Part 1: Mitigated Edge Cases (Resolved)
 
-## 4. Ambiguity and Entity Confusion
-*   **Vague Fund References:** If a user asks *"What is the NAV of the equity fund?"* without specifying which of the 5 schemes they mean, the BM25 and Vector search engines might pull chunks from all 5 funds. The Generation node might merge the NAVs into a single confused response or exceed the 3-sentence constraint trying to list them all.
+These scenarios have been successfully addressed via systemic guards.
 
-## 5. System Limits & Abuse
-*   **Rate Limiting & Quota Exhaustion:** The FastAPI layer lacks IP or token-based rate limiting. A single malicious user (or script) could spam the `/chat` endpoint, rapidly depleting the Google Gemini API quota or causing a Denial of Service (DoS).
-*   **Context Window Bloat:** Because LangGraph maintains session state via `thread_id`, a user who stays in the same session and has a 500-turn long conversation will eventually see the system send an enormous chat history to the Intent/Generation nodes, blowing up API costs and increasing latency significantly.
+### 1. Data Ingestion Failures 
+*   **Dead Links & 404s:** 
+    *   *Risk:* A single dead URL or timeout in the source list crashes the entire ingestion run or silently poisons the DB.
+    *   *Mitigation:* Pipeline wraps every URL fetch in an isolated `try/except` block. Failed fetch attempts do not disrupt the rest of the ingestion batch; errors are collected and dumped into a permanent `ingest_manifest.json` report.
+*   **Database Locking:**
+    *   *Risk:* The offline ingestion script attempts to write to ChromaDB at the exact same moment the FastAPI backend reads from it, causing SQLite `database is locked` crashes for end-users.
+    *   *Mitigation:* Docker Compose orchestration utilizes `depends_on: service_completed_successfully`. The `api` container physically cannot boot or accept connections until the `ingestion` container finishes its run and exits, ensuring mutually exclusive file handles.
 
-## 6. Edge Case User Behaviors
-*   **Multilingual Queries:** If a user asks *"HDFC Mid cap ka minimum SIP kitna hai?"* (Hindi), Gemini will understand it, but without explicit systemic instructions, it may respond inconsistently in Hindi without the enforced English citation footers, breaking the strict UI formatting.
+### 2. PII / Constraint Violations
+*   **Accidental PII Injection:** 
+    *   *Risk:* A user inputs a question embedding PAN, Aadhaar, Email, Phone, or Bank details. The system processes it, saving it to LangGraph history and sending it to Gemini.
+    *   *Mitigation:* Standalone, regex-driven `core/pii_guard.py` evaluates all incoming text *before* any intent or LLM routing occurs. If triggered, the pipeline intercepts it into a "privacy risk" branch, halting execution and returning a static refusal without retaining the PII match value.
+*   **Compound "Sneaky" Advisory Queries:** 
+    *   *Risk:* A query like *"What is the expense ratio of HDFC Mid Cap and HDFC Flexi Cap, and which is better?"* bypasses the zero-shot classifier and forces the generation node to provide investment advice.
+    *   *Mitigation:* `core/generator.py` enforces post-generation regex validation blocking strings like `"recommend"`, `"better than"`, and `"buy/sell"`. If triggered, it re-generates against a strict template, or fails safely to a "Please see the URL" fallback.
+
+### 3. System Limits
+*   **Context Window Token Bloat:** 
+    *   *Risk:* Long-running chat sessions (e.g. 50+ turns) accumulate all messages in LangGraph state, eventually exceeding Gemini's token limits or causing massive latency.
+    *   *Mitigation:* `CONTEXT_WINDOW_TURNS = 6` limits the injection of history into the active Generation prompt. Full history is still stored in memory for the UI to display, but the LLM isn't polluted by irrelevant turns.
+
+---
+
+## Part 2: Open / Future Risk Areas (Remaining)
+
+These scenarios remain active edge cases that the current architecture may struggle to handle perfectly.
+
+### 1. Data Ingestion Quality
+*   **Target Website Structural Changes (DOM Changes):** 
+    *   *Risk:* The ingestion relies on Playwright. If Groww drastically changes its DOM layout or deliberately obfuscates its text, the HTML-to-Text transformer may extract unstructured noise. Even though we have a 500-char/keyword filter, a large blob of noise could still technically pass.
+    *   *Impact:* Garbage context retrieved → Hallucinated or broken responses.
+
+### 2. Ambiguity & Entity Confusion
+*   **Vague Fund References:** 
+    *   *Risk:* A user asks *"What is the NAV of the equity fund?"* without specifying which of the 5 schemes they mean. The vector search will pull chunks spanning all 5 funds based on semantic proximity to "equity".
+    *   *Impact:* The generator may synthesize an output merging parameters from different funds, causing a factual collision.
+
+### 3. System Abuse
+*   **Rate Limiting & Quota Exhaustion:** 
+    *   *Risk:* The FastAPI layer currently operates without Token Bucket or IP-based rate limiting. A single malicious user script spamming the `/chat` endpoint will rapidly deplete the Google AI Studio quota.
+    *   *Impact:* Denial of Service (DoS) for all legitimate users once the key is rate-limited by Google.
+
+### 4. Edge Case User Behaviors
+*   **Multilingual Factual Queries:** 
+    *   *Risk:* A user asks purely factual questions in Hindi ("*HDFC Mid cap ka expense ratio kya hai?*").
+    *   *Impact:* Gemini can understand the intent perfectly. However, without explicit systemic instructions mapping translation to output format, it might output a response in a mix of Hindi/English that breaks the strict format required by compliance.
+
+### 5. Numerical / Financial Mathematics
+*   **Calculative Queries:**
+    *   *Risk:* A user asks: *"If I put ₹10,000 in HDFC Flexi Cap 3 years ago, what is its value today?"* 
+    *   *Impact:* The system has facts but no calculator module. The generator might attempt to estimate or hallucinate a compounded return amount based on the retrieved generic past-performance figures, violating the "facts-only / no generation of dates/numbers" constraint. (This is why the future roadmap contains a JSON-backed structured data engine).
