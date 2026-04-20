@@ -1,0 +1,26 @@
+# ─── Core Dependencies ────────────────────────────────────────────────────────
+langchain
+langchain-google-genai
+langchain-community
+langgraph
+chromadb
+fastapi
+uvicorn
+python-dotenv
+pydantic
+
+# ─── Ingestion Pipeline ──────────────────────────────────────────────────────
+playwright
+beautifulsoup4
+html2text
+unstructured
+
+# ─── Retrieval ────────────────────────────────────────────────────────────────
+rank_bm25
+
+# ─── HTTP / API ───────────────────────────────────────────────────────────────
+requests
+httpx
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+pytest

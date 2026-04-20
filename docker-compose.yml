@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  HDFC Mutual Fund RAG — Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+#  Two-service architecture:
+#    1. ingestion — Scrapes, chunks, embeds, and indexes on startup.
+#    2. api       — FastAPI server serving LangGraph queries.
+#
+#  Usage:
+#    docker compose up --build              # build + run both services
+#    docker compose up --build ingestion    # run ingestion only
+#    docker compose up api                  # run API only (needs data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # Phase 4 — Offline Data Ingestion Worker
+  ingestion:
+    build: .
+    container_name: rag_ingestion_worker
+    volumes:
+      - ./.env:/app/.env:ro
+      - chroma_data:/app/chroma_db
+      - manifests_data:/app/data/manifests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+    # Runs the ingestion script once, then exits.
+    # For daily scheduling, replace with:
+    #   command: /bin/bash -c "while true; do python scripts/ingest_data.py; sleep 86400; done"
+    command: python scripts/ingest_data.py
+
+  # Phases 5-7 — Runtime API Backend
+  api:
+    build: .
+    container_name: rag_api_service
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./.env:/app/.env:ro
+      - chroma_data:/app/chroma_db
+      - manifests_data:/app/data/manifests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+    depends_on:
+      ingestion:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    command: uvicorn main:app --host 0.0.0.0 --port 8001
+
+volumes:
+  chroma_data:
+    driver: local
+  manifests_data:
+    driver: local

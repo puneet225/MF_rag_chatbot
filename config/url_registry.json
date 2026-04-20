@@ -1,0 +1,42 @@
+[
+  {
+    "url": "https://groww.in/mutual-funds/hdfc-mid-cap-fund-direct-growth",
+    "scheme_name": "HDFC Mid Cap Opportunities Fund",
+    "scheme_id": "hdfc-mid-cap-fund-direct-growth",
+    "amc": "HDFC Mutual Fund",
+    "source_type": "groww_scheme_page",
+    "document_type": "html"
+  },
+  {
+    "url": "https://groww.in/mutual-funds/hdfc-flexi-cap-fund-direct-growth",
+    "scheme_name": "HDFC Flexi Cap Fund",
+    "scheme_id": "hdfc-flexi-cap-fund-direct-growth",
+    "amc": "HDFC Mutual Fund",
+    "source_type": "groww_scheme_page",
+    "document_type": "html"
+  },
+  {
+    "url": "https://groww.in/mutual-funds/hdfc-focused-30-fund-direct-growth",
+    "scheme_name": "HDFC Focused 30 Fund",
+    "scheme_id": "hdfc-focused-30-fund-direct-growth",
+    "amc": "HDFC Mutual Fund",
+    "source_type": "groww_scheme_page",
+    "document_type": "html"
+  },
+  {
+    "url": "https://groww.in/mutual-funds/hdfc-elss-tax-saver-fund-direct-plan-growth",
+    "scheme_name": "HDFC ELSS Tax Saver Fund",
+    "scheme_id": "hdfc-elss-tax-saver-fund-direct-plan-growth",
+    "amc": "HDFC Mutual Fund",
+    "source_type": "groww_scheme_page",
+    "document_type": "html"
+  },
+  {
+    "url": "https://groww.in/mutual-funds/hdfc-top-100-fund-direct-growth",
+    "scheme_name": "HDFC Top 100 Fund",
+    "scheme_id": "hdfc-top-100-fund-direct-growth",
+    "amc": "HDFC Mutual Fund",
+    "source_type": "groww_scheme_page",
+    "document_type": "html"
+  }
+]
