@@ -18,6 +18,8 @@ Featuring a premium **twinkling space-themed UI** with glassmorphism effects, `g
 
 ---
 
+## 🛠️ Architecture & Flow
+
 ### 1. Data Ingestion & Transformation (Stage: Backend)
 The system operates a multi-phase ingestion sequence to transform raw financial data into semantic memory.
 
@@ -39,7 +41,7 @@ flowchart TD
         DB[(ChromaDB)]
     end
 
-    P4 -- "Update" --> DB
+    P4 -- Update --> DB
 ```
 
 ### 2. Live Runtime & User Interaction
@@ -106,11 +108,24 @@ docker compose up --build
 
 ---
 
+## 🛠️ Technology Stack
+
+| Component | Choice |
+|---|---|
+| **Frontend** | [Next.js](https://nextjs.org/) (React, TypeScript) |
+| **Backend** | [FastAPI](https://fastapi.tiangolo.com/) (Python) |
+| **AI Orchestration** | [LangGraph](https://langchain-ai.github.io/langgraph/) |
+| **Vector Database** | [ChromaDB](https://docs.trychroma.com/) |
+| **Embeddings & LLM** | [Google Gemini](https://ai.google.dev/) (Flash 1.5 & Embedding-001) |
+| **Deployment** | [Vercel](https://vercel.com/) (Frontend) & [Render](https://render.com/) (Backend) |
+
+---
+
 ## 🔗 Documentation
 
+- [🏗️ Detailed Architecture](ARCHITECTURE.md)
 - [📖 API Reference](API_DOCUMENTATION.md)
 - [☁️ Deployment Guide (Render/Vercel)](DEPLOYMENT_GUIDE.md)
-- [🏗️ Detailed Architecture](ARCHITECTURE.md)
 
 ---
 
