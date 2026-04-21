@@ -41,7 +41,7 @@ Click **Environment** and add the following:
 
 ### Step 3: Add Environment Variables
 1. Under **Environment Variables**, add:
-   - `NEXT_PUBLIC_API_URL`: `https://your-render-service-url.onrender.com`
+   - `NEXT_PUBLIC_API_URL`: `https://groww-mf-chatbot-qhhf.onrender.com`
 2. Click **Deploy**.
 
 ---

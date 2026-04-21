@@ -40,7 +40,7 @@ flowchart TD
         direction TB
         Vercel[Vercel Frontend]
         Render[Render Backend]
-        Gemini[Google Gemini 3.1]
+        Gemini[Google Gemini 1.5 Flash]
         DB_Cloud[(ChromaDB Instance)]
         
         GH -- "Auto-Deploy" --> Vercel
@@ -133,8 +133,8 @@ The ingestion pipeline transforms raw HTML into searchable vector embeddings thr
 |---|---|---|
 | **Infrastructure** | Docker Compose | Multi-container setup for local reliability. |
 | **Vector DB** | ChromaDB | Collection: `hdfc_funds`. |
-| **Embeddings** | Google Gemini `models/gemini-embedding-001` | High-dimensional semantic vectors. |
-| **LLM** | Google Gemini 3.1 Flash | High-reasoning engine for factual extraction. |
+| **Embeddings** | Google Gemini `text-embedding-004` | High-dimensional semantic vectors. |
+| **LLM** | Google Gemini 1.5 Flash Latest | High-reasoning engine for factual extraction. |
 | **Orchestration** | LangGraph `StateGraph` | Deterministic agent orchestration. |
 | **Frontend** | Next.js | Modern React framework with dynamic theming. |
 | **System Orchestration** | `run_pipeline.py` & `scheduler.py` | State-aware background automation. |
