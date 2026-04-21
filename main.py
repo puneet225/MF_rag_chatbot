@@ -42,14 +42,29 @@ app = FastAPI(
     version="2.1.0",
 )
 
-# CORS — allow the Next.js frontend from any origin during development
+# CORS — explicit for production, wildcard fallback
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://milestone-1-lemon.vercel.app",
+        "https://milestone-1-kappa.vercel.app",
+        "https://milestone-1.vercel.app",
+        "http://localhost:3000",
+        "*"
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    """Welcome message to confirm backend is reachable."""
+    return {
+        "message": "groww-factor RAG API is alive and reachable.",
+        "endpoints": ["/chat (POST)", "/health (GET)"],
+        "status": "online"
+    }
 
 
 # ─── Request / Response Schemas ───────────────────────────────────────────────
