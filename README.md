@@ -18,45 +18,56 @@ Featuring a premium **twinkling space-themed UI** with glassmorphism effects, `g
 
 ---
 
-## 🛠️ Architecture & Flow
-
-### 1. The Ingestion Pipeline (Phase 4)
-The system scrapes and indexes data from curated fund sources daily using a 7-stage pipeline.
+### 1. Data Ingestion & Transformation (Stage: Backend)
+The system operates a multi-phase ingestion sequence to transform raw financial data into semantic memory.
 
 ```mermaid
-graph LR
-    A[URL Registry] --> B[Playwright Scraper]
-    B --> C[Content Normalizer]
-    C --> D[Quality Filter]
-    D --> E[Gemini Embedding]
-    E --> F[(ChromaDB)]
-    subgraph "Internal Safety"
-    D -.->|Keyword Check| D
+flowchart TD
+    subgraph Ingestion["Ingestion Pipeline (Daily @ 9:30 AM)"]
+        direction TB
+        P1[Phase 1: Scraper]
+        P2[Phase 2: Normalizer]
+        P3[Phase 3: Chunker]
+        P4[Phase 4: Vector Store]
+        
+        P1 -- "Raw HTML" --> P2
+        P2 -- "Cleaned Text" --> P3
+        P3 -- "Semantic Chunks" --> P4
     end
+
+    subgraph Storage["Permanent Storage"]
+        DB[(ChromaDB)]
+    end
+
+    P4 -- "Update" --> DB
 ```
 
-### 2. The Query Logic (LangGraph)
-We use a 6-node state machine to ensure deterministic routing and safety.
+### 2. Live Runtime & User Interaction
+A production-grade microservices flow ensures responsive queries and high security.
 
 ```mermaid
-graph TD
-    User([User Query]) --> Intent[Intent Classifier]
-    Intent --> Safety{PII Guard}
-    
-    Safety -->|PII Detected| Block[Privacy Refusal]
-    Safety -->|No PII| Route{Router}
-    
-    Route -->|Greeting| Greet[Hello Node]
-    Route -->|Advisory| Refuse[Advisory Refusal]
-    Route -->|Factual| RAG[Hybrid Retrieval]
-    
-    RAG --> Gen[Gemini Generation]
-    Gen --> Post[Post-Validation]
-    Post --> Display([User Response])
-    
-    Block --> Display
-    Greet --> Display
-    Refuse --> Display
+flowchart LR
+    subgraph Client["Frontend Service (Vercel)"]
+        UI[Next.js UI]
+    end
+
+    subgraph Server["Backend Service (Render)"]
+        direction TB
+        API[FastAPI Server]
+        Guard{PII Guard}
+        LG[LangGraph Logic]
+        
+        API --> Guard
+        Guard --> LG
+    end
+
+    subgraph Data["Database"]
+        DB[(ChromaDB)]
+    end
+
+    User((User)) -- "HTTPS" --> UI
+    UI -- "REST API" --> API
+    LG -- "Retrieve" --> DB
 ```
 
 ---
