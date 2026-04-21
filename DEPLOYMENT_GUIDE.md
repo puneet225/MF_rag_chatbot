@@ -60,4 +60,4 @@ On Render's free tier, the service spins down after 15 minutes of inactivity. Wh
 - **Frontend:** Use the Vercel deployment logs to troubleshoot connection issues.
 
 ### Daily Schedule
-The `scripts/scheduled_ingestion.py` runs automatically in the background on Render. As long as the service is "awake", it will trigger the job every day at 09:30 AM IST.
+The `orchestrator/scheduler.py` runs automatically in the background on Render. As long as the service is "awake", it will trigger the job every day at 09:30 AM IST.

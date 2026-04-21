@@ -173,6 +173,7 @@ def filter_unchanged_documents(docs: List[Document], force: bool = False) -> tup
         else:
             changed.append(doc)
 
+    MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(hash_path, "w") as f:
         json.dump(new_hashes, f, indent=2)
     return changed, skipped
