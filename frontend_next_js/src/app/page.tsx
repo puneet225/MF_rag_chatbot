@@ -43,6 +43,65 @@ const formatMessage = (text: string) => {
   });
 };
 
+const GrowwFactorLogo = () => (
+  <svg viewBox="0 0 100 100" className="w-8 h-8 rounded-full shadow-md drop-shadow-sm flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <clipPath id="circleClip">
+        <circle cx="50" cy="50" r="50" />
+      </clipPath>
+    </defs>
+    <g clipPath="url(#circleClip)">
+      <rect width="100" height="100" fill="#00E6B8"/>
+      {/* Blue top layer with soft-rounded peaks */}
+      <path d="M 0,72 Q 25,48 40,52 T 65,62 Q 85,45 100,35 L 100,0 L 0,0 Z" fill="#5A6DF2"/>
+    </g>
+  </svg>
+);
+
+const StarsBackground = () => {
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      {/* Dynamic Twinkling Stars generated via standard CSS gradient grid */}
+      <div 
+        className="absolute inset-0 opacity-40 dark:opacity-80"
+        style={{
+          backgroundImage: `
+            radial-gradient(1px 1px at 15% 30%, #00D09C 100%, transparent),
+            radial-gradient(1.5px 1.5px at 85% 15%, #00D09C 100%, transparent),
+            radial-gradient(2px 2px at 45% 75%, #5A6DF2 100%, transparent),
+            radial-gradient(1px 1px at 75% 80%, #00D09C 100%, transparent),
+            radial-gradient(1px 1px at 25% 90%, #5A6DF2 100%, transparent),
+            radial-gradient(1.5px 1.5px at 90% 40%, rgba(0, 208, 156, 0.7) 100%, transparent),
+            radial-gradient(2px 2px at 5% 50%, rgba(90, 109, 242, 0.5) 100%, transparent),
+            radial-gradient(1px 1px at 50% 10%, #00D09C 100%, transparent),
+            radial-gradient(1.5px 1.5px at 60% 50%, #5A6DF2 100%, transparent)
+          `,
+          backgroundSize: '200px 200px',
+          animation: 'twinkle 4s infinite alternate ease-in-out'
+        }}
+      />
+      {/* Shooting Stars */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes twinkle { 0% { opacity: 0.3; } 100% { opacity: 1; transform: scale(1.02); } }
+        @keyframes shooting-star { 
+          0% { transform: translate(-10vw, 50vh) rotate(-45deg); opacity: 1; } 
+          100% { transform: translate(110vw, -50vh) rotate(-45deg); opacity: 0; } 
+        }
+        .shooting-star-layer {
+          position: absolute;
+          width: 150px;
+          height: 2px;
+          background: linear-gradient(90deg, #00D09C, transparent);
+          filter: drop-shadow(0 0 6px #00D09C);
+          animation: shooting-star 6s infinite linear;
+        }
+      `}} />
+      <div className="shooting-star-layer" style={{ animationDelay: '0s', top: '20%', left: '-10%' }}></div>
+      <div className="shooting-star-layer" style={{ animationDelay: '3s', top: '70%', left: '-20%', background: 'linear-gradient(90deg, #5A6DF2, transparent)'}}></div>
+    </div>
+  );
+};
+
 export default function FundFactChat() {
   const [sessions, setSessions] = useState<{ [key: string]: { messages: any[], title: string } }>({});
   const [activeSessionId, setActiveSessionId] = useState<string>('');
@@ -88,6 +147,9 @@ export default function FundFactChat() {
   const sendMessage = async (text: string) => {
     if (!text.trim() || !activeSessionId) return;
 
+    // Use environment variable for API URL in production, fallback to local for dev
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+
     const userMessage = { role: 'user', content: text };
     
     setSessions(prev => ({
@@ -102,7 +164,7 @@ export default function FundFactChat() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8001/chat', {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +196,7 @@ export default function FundFactChat() {
     } catch (error) {
       const errorMessage = { 
         role: 'assistant', 
-        content: "Error: Could not reach the FundFact backend. Is FastAPI running on port 8001?",
+        content: "Error: Could not reach the groww-factor backend. Is FastAPI running on port 8001?",
         isError: true
       };
       setSessions(prev => ({
@@ -166,15 +228,15 @@ export default function FundFactChat() {
   if (!activeSession) return <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-950">Loading...</div>;
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    <div className="flex h-screen bg-white dark:bg-[#05070a] text-gray-900 dark:text-gray-100 transition-colors duration-200 relative overflow-hidden">
+      <StarsBackground />
+      
       {/* Sidebar */}
-      <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-colors duration-200">
+      <div className="w-80 bg-gray-50/60 dark:bg-[#0a0c10]/60 border-r border-gray-200/50 dark:border-gray-800/50 flex flex-col transition-colors duration-200 backdrop-blur-xl z-10">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="bg-groww p-2 rounded-lg text-white shadow-md shadow-groww/20">
-              <BarChart2 size={24} />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">FundFact</h1>
+            <GrowwFactorLogo />
+            <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent tracking-tight">groww-factor</h1>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium">
             Factual intelligence for HDFC Mutual Fund analysis.
@@ -223,9 +285,9 @@ export default function FundFactChat() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-950 transition-colors duration-200 relative">
+      <div className="flex-1 flex flex-col bg-transparent relative z-10">
         {/* Header */}
-        <header className="h-16 border-b border-gray-100 dark:border-gray-800/50 flex items-center justify-between px-8 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10 transition-colors duration-200">
+        <header className="h-16 border-b border-gray-100/50 dark:border-gray-800/30 flex items-center justify-between px-8 bg-white/40 dark:bg-[#05070a]/40 backdrop-blur-xl sticky top-0 z-20 transition-colors duration-200">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{activeSession.title}</h2>
           <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 rounded-full border border-gray-200 dark:border-gray-800">
              <span className="w-2 h-2 rounded-full bg-groww animate-pulse"></span>
@@ -239,13 +301,13 @@ export default function FundFactChat() {
             
             {/* Empty State / Suggested Prompts */}
             {activeSession.messages.length === 0 && (
-              <div className="pt-12 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="pt-12 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="text-center mb-10">
-                  <div className="bg-green-50 dark:bg-groww/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 text-groww shadow-sm border border-groww/20 shadow-groww/10">
-                    <Bot size={32} />
+                  <div className="mx-auto mb-8 transform hover:scale-110 transition-transform duration-300">
+                    <GrowwFactorLogo />
                   </div>
-                  <h3 className="text-3xl font-bold text-gray-800 dark:text-white mb-3">How can I help you today?</h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-lg max-w-lg mx-auto">I provide strict, compliance-verified data sourced directly from official fund documents.</p>
+                  <h3 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">How can I help you today?</h3>
+                  <p className="text-gray-500 dark:text-gray-400 text-lg max-w-xl mx-auto font-medium">I provide strict, compliance-verified data sourced directly from official fund documents.</p>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -336,7 +398,7 @@ export default function FundFactChat() {
           </div>
           <div className="text-center mt-4">
             <span className="text-xs font-medium text-gray-400 dark:text-gray-500">
-              Disclaimer: FundFact provides data sourced from AMC portals. It is not an investment advisory platform.
+              Disclaimer: groww-factor provides data sourced from AMC portals. It is not an investment advisory platform.
             </span>
           </div>
         </div>

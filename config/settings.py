@@ -70,8 +70,8 @@ DATA_DIR = PROJECT_ROOT / "data"
 MANIFESTS_DIR = DATA_DIR / "manifests"
 
 # ─── API ──────────────────────────────────────────────────────────────────────
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "8001"))
+# Render (and many clouds) use the 'PORT' environment variable
+API_PORT = int(os.getenv("PORT", os.getenv("API_PORT", "8001")))
 
 # ─── Educational / Refusal Links ─────────────────────────────────────────────
 AMFI_EDUCATION_URL = "https://www.amfiindia.com/investor-corner"

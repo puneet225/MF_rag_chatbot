@@ -37,9 +37,9 @@ logger = logging.getLogger("api")
 
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="HDFC Mutual Fund RAG API",
-    description="Facts-only FAQ assistant for HDFC Mutual Fund schemes.",
-    version="2.0.0",
+    title="groww-factor RAG API",
+    description="Compliance-first factual intelligence for mutual fund analysis.",
+    version="2.1.0",
 )
 
 # CORS — allow the Next.js frontend from any origin during development
