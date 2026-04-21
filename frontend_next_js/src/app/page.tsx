@@ -147,8 +147,11 @@ export default function FundFactChat() {
   const sendMessage = async (text: string) => {
     if (!text.trim() || !activeSessionId) return;
 
-    // Use environment variable for API URL in production, fallback to local for dev
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    // Clean up URL: Remove trailing slash if present to avoid //chat issues
+    let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    if (API_BASE_URL.endsWith('/')) {
+      API_BASE_URL = API_BASE_URL.slice(0, -1);
+    }
 
     const userMessage = { role: 'user', content: text };
     
@@ -196,7 +199,7 @@ export default function FundFactChat() {
     } catch (error) {
       const errorMessage = { 
         role: 'assistant', 
-        content: "Error: Could not reach the groww-factor backend. Is FastAPI running on port 8001?",
+        content: `Connection Error: Could not reach the backend at ${API_BASE_URL}. Ensure your Vercel NEXT_PUBLIC_API_URL environment variable is correct and matches your Render URL.`,
         isError: true
       };
       setSessions(prev => ({
