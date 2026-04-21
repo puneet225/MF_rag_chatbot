@@ -224,8 +224,16 @@ def run_ingestion(force: bool = False):
         return
 
     # 3. Index
-    chunk_count = chunk_and_index(changed_docs)
-    logger.info(f"Indexed {chunk_count} chunks.")
+    try:
+        chunk_count = chunk_and_index(changed_docs)
+        logger.info(f"Indexed {chunk_count} chunks.")
+    except Exception as e:
+        if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
+            logger.warning("⚠️ QUOTA EXCEEDED: Data embedding failed. The system will continue using existing data.")
+            logger.warning("To resolve: Check your Google AI Studio billing or wait for the quota reset.")
+        else:
+            logger.error(f"Ingestion failed: {e}")
+            # We don't raise here, so the server can still boot Stage 2 & 3
 
     # 4. Output State
     update_last_refreshed()
