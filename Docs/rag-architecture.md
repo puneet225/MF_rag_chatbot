@@ -111,6 +111,21 @@ Store at minimum:
 
 ### 4.1 Stages
 
+The ingestion pipeline transforms raw HTML into searchable vector embeddings through a multi-stage process.
+
+```mermaid
+graph LR
+    A[URL Registry] --> B[Playwright Scraper]
+    B --> C[Content Normalizer]
+    C --> D[Quality Filter]
+    D --> E[Gemini Embedding]
+    E --> F[(ChromaDB)]
+    subgraph "Internal Safety"
+    D -.->|Keyword Check| D
+    end
+```
+
+
 | Stage | Implementation | Details |
 |---|---|---|
 | **URL registry** | Hardcoded list `URLS` in `scripts/ingest_data.py` | 5 Groww scheme page URLs. Extend by appending to this list. |
@@ -160,6 +175,30 @@ ChatState (TypedDict):
 ```
 
 ### 5.1 Graph topology
+
+The query logic is modelled as a directed state machine using LangGraph to ensure deterministic safety and routing.
+
+```mermaid
+graph TD
+    User([User Query]) --> Intent[Intent Classifier]
+    Intent --> Safety{PII Guard}
+    
+    Safety -->|PII Detected| Block[Privacy Refusal]
+    Safety -->|No PII| Route{Router}
+    
+    Route -->|Greeting| Greet[Hello Node]
+    Route -->|Advisory| Refuse[Advisory Refusal]
+    Route -->|Factual| RAG[Hybrid Retrieval]
+    
+    RAG --> Gen[Gemini Generation]
+    Gen --> Post[Post-Validation]
+    Post --> Display([User Response])
+    
+    Block --> Display
+    Greet --> Display
+    Refuse --> Display
+```
+
 
 ```
 START → classify_intent → safety_guard → [conditional routing]
