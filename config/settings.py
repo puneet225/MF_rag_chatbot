@@ -71,6 +71,7 @@ MANIFESTS_DIR = DATA_DIR / "manifests"
 
 # ─── API ──────────────────────────────────────────────────────────────────────
 # Render (and many clouds) use the 'PORT' environment variable
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("PORT", os.getenv("API_PORT", "8001")))
 
 # ─── Educational / Refusal Links ─────────────────────────────────────────────
