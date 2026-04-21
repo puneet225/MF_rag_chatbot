@@ -4,6 +4,45 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, MessageSquare, Send, Bot, User, BarChart2, Sun, Moon, AlertTriangle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
+const formatMessage = (text: string) => {
+  // Regex matches `[text](url)` or standalone `http(s)://...`
+  const urlRegex = /(\[.*?\]\(https?:\/\/[^\s\)]+\)|https?:\/\/[^\s\)]+)/g;
+  
+  return text.split(urlRegex).map((part, index) => {
+    // 1. Is it a Markdown link? [Title](URL)
+    const markdownMatch = part.match(/^\[(.*?)\]\((https?:\/\/[^\s\)]+)\)$/);
+    if (markdownMatch) {
+      return (
+        <a key={index} href={markdownMatch[2]} target="_blank" rel="noopener noreferrer" className="text-groww hover:underline font-medium">
+          {markdownMatch[1]}
+        </a>
+      );
+    }
+    
+    // 2. Is it a raw URL?
+    const urlMatch = part.match(/^(https?:\/\/[^\s\)]+)$/);
+    if (urlMatch) {
+      return (
+        <a key={index} href={urlMatch[1]} target="_blank" rel="noopener noreferrer" className="text-groww hover:underline">
+          {urlMatch[1]}
+        </a>
+      );
+    }
+    
+    // 3. Otherwise, check for bold text parsing (**bold**)
+    const boldRegex = /(\*\*.*?\*\*)/g;
+    return <span key={index}>{
+      part.split(boldRegex).map((subPart, subIndex) => {
+        const boldMatch = subPart.match(/^\*\*(.*?)\*\*$/);
+        if (boldMatch) {
+          return <strong key={subIndex} className="font-semibold text-gray-900 dark:text-white">{boldMatch[1]}</strong>;
+        }
+        return subPart;
+      })
+    }</span>;
+  });
+};
+
 export default function FundFactChat() {
   const [sessions, setSessions] = useState<{ [key: string]: { messages: any[], title: string } }>({});
   const [activeSessionId, setActiveSessionId] = useState<string>('');
@@ -244,7 +283,7 @@ export default function FundFactChat() {
                       ? 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-900/50'
                       : 'bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-200'
                 }`}>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <div className="whitespace-pre-wrap">{formatMessage(msg.content)}</div>
                   
                   {/* Premium Advisory Badge */}
                   {msg.intent === 'advisory' && (

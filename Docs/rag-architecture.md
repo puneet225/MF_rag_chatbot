@@ -84,16 +84,17 @@ Store at minimum:
 
 ### 4.0 Scheduler & Infrastructure — Docker Compose
 
-**Product default:** Ingestion runs once on container startup. For recurring refreshes, the `docker-compose.yml` command can be changed to a loop (`while true; do python scripts/ingest_data.py; sleep 86400; done` for daily).
+**Product default:** The ingestion service runs a lightweight Python scheduler natively inside its Docker container (`scheduled_ingestion.py`). It executes an initial pipeline run immediately on startup, writes an `initial_boot_complete.flag`, and then enters an idle wait state, executing daily at **09:30 AM (Asia/Kolkata)**.
 
 **Implementation:** `docker-compose.yml` at the project root defines:
 
 | Service | Image | Purpose | Exposed Ports |
 |---|---|---|---|
 | `api` | `Dockerfile` (Python 3.11 + Playwright) | FastAPI backend serving LangGraph queries | `8001:8001` |
-| `ingestion` | Same `Dockerfile` | Runs `python scripts/ingest_data.py` then exits | None |
+| `ingestion` | Same `Dockerfile` | Runs `scheduled_ingestion.py` daily | None |
 
-**Shared State:** Both services mount a Docker named volume `chroma_data` to `/app/chroma_db`. The ingestion worker writes embeddings; the API service reads them.
+**Shared State:** Both services mount a Docker named volume `chroma_data` to `/app/chroma_db` and `manifests_data` to `/app/data/manifests`.
+**Synchronisation:** The `api` container relies on `depends_on: condition: service_healthy` for the `ingestion` service, strictly waiting until `initial_boot_complete.flag` physically exists before booting.
 
 **Secrets:** `GOOGLE_API_KEY` is loaded from `.env` mounted into both containers (`./.env:/app/.env`). Never commit `.env` with production keys.
 
