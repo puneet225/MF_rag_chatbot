@@ -13,14 +13,14 @@ echo "🚀 Starting groww-factor boot sequence..."
 # Ensures that even on a fresh cold-boot, the ChromaDB vector store
 # is populated with the latest facts from the 5 fund sources.
 echo "[Stage 1/3] Running initial data ingestion..."
-python scripts/ingest_data.py
+python orchestrator/run_pipeline.py
 
 # 2. Background Scheduler
 # -----------------------
 # Launches the daily 9:30 AM scheduler in the background.
 # This stays alive for the duration of the web service.
 echo "[Stage 2/3] Launching daily 9:30 AM scheduler..."
-python scripts/scheduled_ingestion.py &
+python orchestrator/scheduler.py &
 
 # 3. FastAPI Server
 # -----------------

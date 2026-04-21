@@ -23,6 +23,7 @@ This document describes the complete retrieval-augmented generation (RAG) archit
 |---|---|
 | **Docker Compose Orchestrator** | Runs two services (`api`, `ingestion`) sharing a named volume `chroma_data` mapped to `/app/chroma_db`. See §4.0. |
 | **Ingestion Worker (Docker service)** | On startup (or on schedule), reads the URL allowlist, fetches every page via `AsyncHtmlLoader` + Playwright, normalises → chunks → embeds (Gemini Embedding) → upserts into ChromaDB. |
+| **System Orchestrator** | `orchestrator/run_pipeline.py` & `orchestrator/scheduler.py` | Manages the background data lifecycle. |
 | **ChromaDB (Shared Volume)** | On-disk PersistentClient at `/app/chroma_db`, collection `hdfc_funds`. Written by the ingestion worker, read by the API at query time. |
 | **FastAPI Backend (Docker service)** | Exposes `POST /chat`, `GET /health`. Receives user message + `thread_id`, invokes the LangGraph state machine, returns `{ response, intent, citation }`. |
 | **LangGraph State Machine** | Six-node directed graph: `classify_intent → safety_guard → [greeting | refusal | retrieval → generation]`. Compiled with `MemorySaver` checkpointer for per-thread persistence. |
@@ -40,6 +41,8 @@ This document describes the complete retrieval-augmented generation (RAG) archit
 
 **AMC:** HDFC Mutual Fund.
 **Source type:** Groww scheme page HTML (no PDFs in this phase).
+**URL registry:** Hardcoded list `URLS` in `config/url_registry.json` | 5 Groww scheme page URLs. Extend by appending to this list.
+
 **Allowlisted URLs:**
 
 | Scheme | URL |
@@ -73,7 +76,9 @@ Store at minimum:
 
 ### 4.0 Scheduler & Infrastructure — Docker Compose
 
-**Product default:** The ingestion service runs a lightweight Python scheduler natively inside its Docker container (`scheduled_ingestion.py`). It executes an initial pipeline run immediately on startup, writes an `initial_boot_complete.flag`, and then enters an idle wait state, executing daily at **09:30 AM (Asia/Kolkata)**.
+**Manual runs:** Without Docker, the ingestion script can be executed directly: `python orchestrator/run_pipeline.py` from the project root.
+
+**Product default:** The ingestion service runs a lightweight Python scheduler natively inside its Docker container (`orchestrator/scheduler.py`). It executes an initial pipeline run immediately on startup, writes an `initial_boot_complete.flag`, and then enters an idle wait state, executing daily at **09:30 AM (Asia/Kolkata)**.
 
 **Implementation:** `docker-compose.yml` at the project root defines:
 

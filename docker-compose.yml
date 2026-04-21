@@ -30,7 +30,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-    command: python scripts/scheduled_ingestion.py
+    command: python orchestrator/scheduler.py
 
   # Phases 5-7 — Runtime API Backend
   api:

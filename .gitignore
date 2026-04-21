@@ -26,5 +26,9 @@ frontend_next_js/.next/
 *.swo
 *~
 
+# ─── Orchestrator ─────────────────────────────────────────────────────────────
+orchestrator/*.log
+orchestrator/last_refreshed.txt
+
 # ─── Gemini Agent ─────────────────────────────────────────────────────────────
 .gemini/

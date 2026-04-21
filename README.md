@@ -79,7 +79,7 @@ flowchart LR
 - **🛡️ PII Firewall:** Standalone regex-driven guard catching PAN, Aadhaar, Emails, and Bank details before they hit the LLM.
 - **⚖️ Compliance Post-Check:** Every response is validated against 10+ forbidden advisory patterns (e.g., "I recommend", "buy", "better than").
 - **⚡ Hybrid Retrieval:** 60% Dense Vector / 40% BM25 Keyword search for precise numerical fact extraction.
-- **📅 Automated Scheduler:** Docker-ready service that refreshes the knowledge base daily at 09:30 AM IST.
+- **📅 Automated Scheduler:** Docker-ready logic in `orchestrator/` that refreshes the knowledge base daily at 09:30 AM IST.
 
 ---
 
@@ -92,6 +92,12 @@ cd Milestone_1
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+### 3. Run Pipeline Manually
+If you want to refresh the data immediately:
+```bash
+python orchestrator/run_pipeline.py --force
 ```
 
 ### 2. Configure
