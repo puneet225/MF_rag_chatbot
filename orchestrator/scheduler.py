@@ -55,11 +55,7 @@ def scheduled_job():
 if __name__ == "__main__":
     logger.info("Orchestrator Scheduler Initialized.")
     
-    # 1. Boot Run: Ensure data is fresh on start
-    logger.info("Action: Boot-time ingestion starting...")
-    scheduled_job()
-    
-    # 2. Render Handshake: Signal that boot-ingestion is done
+    # 1. Render Handshake: Signal that boot-ingestion is done
     flag_path = ROOT_DIR / "data" / "manifests" / "initial_boot_complete.flag"
     os.makedirs(os.path.dirname(flag_path), exist_ok=True)
     with open(flag_path, "w") as f:
