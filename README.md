@@ -18,58 +18,41 @@ Featuring a premium **twinkling space-themed UI** with glassmorphism effects, `g
 
 ---
 
-## 🛠️ Architecture & Flow
+## 🛠️ System Lifecycle & Architecture
 
-### 1. Data Ingestion & Transformation (Stage: Backend)
-The system operates a multi-phase ingestion sequence to transform raw financial data into semantic memory.
+The following diagram illustrates the complete end-to-end flow of the **groww-factor** system, from data ingestion to live user serving.
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion["Ingestion Pipeline (Daily @ 9:30 AM)"]
+    subgraph Local["Development & Automation (Local/GitHub)"]
         direction TB
-        P1[Phase 1: Scraper]
-        P2[Phase 2: Normalizer]
-        P3[Phase 3: Chunker]
-        P4[Phase 4: Vector Store]
+        P1[Phase 1: Scraper] --> P2[Phase 2: Normalizer]
+        P2 --> P3[Phase 3: Chunker]
+        P3 --> P4[Phase 4: Vector Store]
         
-        P1 -- "Raw HTML" --> P2
-        P2 -- "Cleaned Text" --> P3
-        P3 -- "Semantic Chunks" --> P4
+        DB_Local[(Local ChromaDB)]
+        P4 -- "Update/Sync" --> DB_Local
+        
+        GH[GitHub Repository]
+        P4 -- "Auto-Push" --> GH
     end
 
-    subgraph Storage["Permanent Storage"]
-        DB[(ChromaDB)]
-    end
-
-    P4 -- Update --> DB
-```
-
-### 2. Live Runtime & User Interaction
-A production-grade microservices flow ensures responsive queries and high security.
-
-```mermaid
-flowchart LR
-    subgraph Client["Frontend Service (Vercel)"]
-        UI[Next.js UI]
-    end
-
-    subgraph Server["Backend Service (Render)"]
+    subgraph Cloud["Cloud Infrastructure (Live Serving)"]
         direction TB
-        API[FastAPI Server]
-        Guard{PII Guard}
-        LG[LangGraph Logic]
+        Vercel[Vercel Frontend]
+        Render[Render Backend]
+        Gemini[Google Gemini 1.5]
+        DB_Cloud[(ChromaDB Instance)]
         
-        API --> Guard
-        Guard --> LG
+        GH -- "Auto-Deploy" --> Vercel
+        GH -- "Auto-Deploy" --> Render
+        
+        Render -- "Query" --> DB_Cloud
+        Render -- "Inference" --> Gemini
     end
 
-    subgraph Data["Database"]
-        DB[(ChromaDB)]
-    end
-
-    User((User)) -- "HTTPS" --> UI
-    UI -- "REST API" --> API
-    LG -- "Retrieve" --> DB
+    User((User)) -- "HTTPS" --> Vercel
+    Vercel -- "API Proxy" --> Render
 ```
 
 ---
@@ -83,33 +66,52 @@ flowchart LR
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Local Setup Guide
 
-### 1. Clone & Setup
+Follow these steps to get `groww-factor` running on your local machine.
+
+### 1. Clone & Dependencies
 ```bash
 git clone https://github.com/puneet225/Milestone_1.git
 cd Milestone_1
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # Mac/Linux
 pip install -r requirements.txt
 ```
 
-### 3. Run Pipeline Manually
-If you want to refresh the data immediately:
+### 2. Configuration
+Create a `.env` file and add your Google API Key:
+```bash
+cp .env.example .env
+# Open .env and set GOOGLE_API_KEY=your_key_here
+```
+
+### 3. Initialize Ingestion (First Run)
+Manually trigger the pipeline to build your local ChromaDB vector store:
 ```bash
 python orchestrator/run_pipeline.py --force
 ```
 
-### 2. Configure
-Create a `.env` file from the template:
-```bash
-cp .env.example .env
-# Add your GOOGLE_API_KEY
-```
+### 4. Run Application
+You can run the full stack using Docker (easiest) or manually.
 
-### 3. Run Locally (Docker)
+#### Option A: Docker Compose (Recommended)
 ```bash
 docker compose up --build
+```
+
+#### Option B: Manual (Development)
+**Start Backend:**
+```bash
+# In one terminal
+python orchestrator/scheduler.py  # Starts API + Background Scheduler
+```
+**Start Frontend:**
+```bash
+# In another terminal
+cd frontend_next_js
+npm install
+npm run dev
 ```
 
 ---

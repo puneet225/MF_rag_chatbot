@@ -17,31 +17,67 @@ This document describes the complete retrieval-augmented generation (RAG) archit
 
 ---
 
-## 2. Components in Brief
+## 2. System Lifecycle — End-to-End Flow
 
-| Component | Responsibility |
-|---|---|
-| **Docker Compose Orchestrator** | Runs two services (`api`, `ingestion`) sharing a named volume `chroma_data` mapped to `/app/chroma_db`. See §4.0. |
-| **Ingestion Worker (Docker service)** | On startup (or on schedule), reads the URL allowlist, fetches every page via `AsyncHtmlLoader` + Playwright, normalises → chunks → embeds (Gemini Embedding) → upserts into ChromaDB. |
-| **System Orchestrator** | `orchestrator/run_pipeline.py` & `orchestrator/scheduler.py` | Manages the background data lifecycle. |
-| **ChromaDB (Shared Volume)** | On-disk PersistentClient at `/app/chroma_db`, collection `hdfc_funds`. Written by the ingestion worker, read by the API at query time. |
-| **FastAPI Backend (Docker service)** | Exposes `POST /chat`, `GET /health`. Receives user message + `thread_id`, invokes the LangGraph state machine, returns `{ response, intent, citation }`. |
-| **LangGraph State Machine** | Six-node directed graph: `classify_intent → safety_guard → [greeting | refusal | retrieval → generation]`. Compiled with `MemorySaver` checkpointer for per-thread persistence. |
-| **Query Router (Intent Classifier)** | Gemini Flash zero-shot classification into `factual`, `advisory`, `greeting`, or `privacy_risk` before any retrieval occurs. |
-| **Hybrid Retriever** | `EnsembleRetriever` (60% dense vector / 40% BM25 keyword) pulling top-k=3 chunks per method from ChromaDB. |
-| **Generation Node** | Gemini Flash with strict system prompt: ≤ 3 sentences, facts-only, no advice, exactly one citation URL + `Last updated from sources: <date>` footer. |
-| **Safety & Refusal Layer** | Regex PII detection (PAN/Aadhaar) in `safety_guard_node`; templated polite refusal with AMFI educational link for advisory queries. |
-| **Next.js Frontend** | `frontend_next_js/` — React SPA with dark mode toggle, Groww-inspired UI (`#00D09C`), glassmorphism, starter question chips. Communicates with FastAPI via `fetch()` to `POST /chat`. |
+The diagram below provides a high-fidelity overview of the entire system, from local automation to cloud serving.
+
+```mermaid
+flowchart TD
+    subgraph Local["Development & Automation (Local/GitHub)"]
+        direction TB
+        P1[Phase 1: Scraper] --> P2[Phase 2: Normalizer]
+        P2 --> P3[Phase 3: Chunker]
+        P3 --> P4[Phase 4: Vector Store]
+        
+        DB_Local[(Local ChromaDB)]
+        P4 -- "Update/Sync" --> DB_Local
+        
+        GH[GitHub Repository]
+        P4 -- "Auto-Push" --> GH
+    end
+
+    subgraph Cloud["Cloud Infrastructure (Live Serving)"]
+        direction TB
+        Vercel[Vercel Frontend]
+        Render[Render Backend]
+        Gemini[Google Gemini 1.5]
+        DB_Cloud[(ChromaDB Instance)]
+        
+        GH -- "Auto-Deploy" --> Vercel
+        GH -- "Auto-Deploy" --> Render
+        
+        Render -- "Query" --> DB_Cloud
+        Render -- "Inference" --> Gemini
+    end
+
+    User((User)) -- "HTTPS" --> Vercel
+    Vercel -- "API Proxy" --> Render
+```
 
 ---
 
-## 3. Corpus & Data Model
+## 3. Components in Brief
 
-### 3.1 Scope (current corpus)
+| Component | Responsibility |
+|---|---|
+| **Docker Compose Orchestrator** | Runs two services (`api`, `ingestion`) sharing a named volume `chroma_data` mapped to `/app/chroma_db`. |
+| **Ingestion Worker (Docker service)** | On startup (or on schedule), reads the URL allowlist, fetches every page via `AsyncHtmlLoader` + Playwright, normalises → chunks → embeds → upserts into ChromaDB. |
+| **System Orchestrator** | `orchestrator/run_pipeline.py` & `orchestrator/scheduler.py` | Manages the background data lifecycle and state tracking. |
+| **ChromaDB (Shared Volume)** | On-disk PersistentClient at `/app/chroma_db`. Written by the ingestion worker, read by the API at query time. |
+| **FastAPI Backend (Docker service)** | Exposes `POST /chat`, `GET /health`. Receives user message + `thread_id`, invokes the LangGraph state machine, returns `{ response, intent, citation }`. |
+| **LangGraph State Machine** | Six-node directed graph: `classify_intent → safety_guard → [greeting | refusal | retrieval → generation]`. |
+| **Hybrid Retriever** | `EnsembleRetriever` (60% dense vector / 40% BM25 keyword) pulling top-k=3 chunks per method from ChromaDB. |
+| **Next.js Frontend** | `frontend_next_js/` — React SPA with dark mode toggle, Groww-inspired UI (`#00D09C`), glassmorphism, starter question chips. |
+
+---
+
+## 4. Corpus & Data Model
+
+### 4.1 Scope (current corpus)
 
 **AMC:** HDFC Mutual Fund.
 **Source type:** Groww scheme page HTML (no PDFs in this phase).
-**URL registry:** Hardcoded list `URLS` in `config/url_registry.json` | 5 Groww scheme page URLs. Extend by appending to this list.
+**URL registry:** Hardcoded list `URLS` in `config/url_registry.json`.
 
 **Allowlisted URLs:**
 
@@ -53,125 +89,58 @@ This document describes the complete retrieval-augmented generation (RAG) archit
 | HDFC ELSS Tax Saver Fund | `https://groww.in/mutual-funds/hdfc-elss-tax-saver-fund-direct-plan-growth` |
 | HDFC Top 100 Fund (Large Cap) | `https://groww.in/mutual-funds/hdfc-top-100-fund-direct-growth` |
 
-**Out of scope for now:** AMC PDFs (KIM, SID), standalone factsheet PDFs, AMFI/SEBI pages, and additional URLs. The ingestion pipeline should be built so PDFs and extra allowlist entries can be added later without redesign.
+---
 
-**Note:** The problem statement targets official AMC / AMFI / SEBI sources. This phase uses Groww pages as the curated HTML corpus; expanding to primary documents is a future corpus upgrade.
+## 5. Ingestion Pipeline (Detailed)
 
-### 3.2 Document metadata (per chunk)
+### 5.1 Stages
 
-Store at minimum:
+The ingestion pipeline transforms raw HTML into searchable vector embeddings through a multi-phase sequence, as seen in the **Stage 1** subgraph above.
 
-| Field | Purpose |
+| Stage | Implementation | Details |
+|---|---|---|
+| **Phase 1: Fetch** | `AsyncHtmlLoader(URLS)` | Uses Playwright under the hood for JS-rendered pages. |
+| **Phase 2: Normalise** | `Html2TextTransformer` | Strips HTML to plain text, removes empty lines, enriches metadata. |
+| **Phase 3: Chunk** | `RecursiveCharacterTextSplitter` | size=800, overlap=100. |
+| **Phase 4: Index** | `Chroma.from_documents` | Local PersistentClient; persists to disk. |
+
+### 5.2 Failure handling
+
+| Failure Mode | Current Behaviour |
 |---|---|
-| `source` | Canonical page URL, used as the citation link (exactly one per assistant message). |
-| `source_type` | Currently `official_groww_page`; later `factsheet`, `kim`, `sid`, `amfi`, `sebi` as corpus expands. |
-| `scheme_name` | Scheme name derived from URL slug (e.g., "Hdfc Mid Cap Fund Direct Growth"). |
-| `asset_management_company` | AMC identifier, currently always `HDFC Mutual Fund`. |
-| `last_updated` | ISO date of scrape run (populates the `Last updated from sources:` footer). |
-| `content_hash` | *(Planned)* Detect content drift on re-crawl; skip re-embedding when unchanged. |
+| Non-2xx response | `AsyncHtmlLoader` raises exception; script logs and continues. |
+| Empty HTML | Document is rejected by the quality validator. |
+| API key missing | Pipeline returns early with a fatal error. |
 
 ---
 
-## 4. Ingestion Pipeline (Detailed)
+## 6. Runtime Query Pipeline — LangGraph State Machine
 
-### 4.0 Scheduler & Infrastructure — Docker Compose
-
-**Manual runs:** Without Docker, the ingestion script can be executed directly: `python orchestrator/run_pipeline.py` from the project root.
-
-**Product default:** The ingestion service runs a lightweight Python scheduler natively inside its Docker container (`orchestrator/scheduler.py`). It executes an initial pipeline run immediately on startup, writes an `initial_boot_complete.flag`, and then enters an idle wait state, executing daily at **09:30 AM (Asia/Kolkata)**.
-
-**Implementation:** `docker-compose.yml` at the project root defines:
-
-| Service | Image | Purpose | Exposed Ports |
-|---|---|---|---|
-| `api` | `Dockerfile` (Python 3.11 + Playwright) | FastAPI backend serving LangGraph queries | `8001:8001` |
-| `ingestion` | Same `Dockerfile` | Runs `scheduled_ingestion.py` daily | None |
-
-**Shared State:** Both services mount a Docker named volume `chroma_data` to `/app/chroma_db` and `manifests_data` to `/app/data/manifests`.
-
----
-
-### 4.1 Stages
-
-The ingestion pipeline transforms raw HTML into searchable vector embeddings through a multi-phase sequence.
-
-```mermaid
-flowchart TD
-    subgraph Ingestion["Ingestion Pipeline (Daily @ 9:30 AM)"]
-        direction TB
-        P1[Phase 1: Scraper]
-        P2[Phase 2: Normalizer]
-        P3[Phase 3: Chunker]
-        P4[Phase 4: Vector Store]
-        
-        P1 -- "Raw HTML" --> P2
-        P2 -- "Cleaned Text" --> P3
-        P3 -- "Semantic Chunks" --> P4
-    end
-
-    subgraph Storage["Permanent Storage"]
-        DB[(ChromaDB)]
-    end
-
-    P4 -- Update --> DB
-```
-
----
-
-## 5. Runtime Query Pipeline — LangGraph State Machine
-
-**Implementation:** `core/graph.py`, `core/nodes.py`, `core/state.py`, `core/retriever.py`.
-
-### 5.1 Graph topology
-
-The query logic is modelled as a directed state machine within the cloud-native infrastructure.
-
-```mermaid
-flowchart LR
-    subgraph Client["Frontend (Vercel)"]
-        UI[Next.js App]
-    end
-
-    subgraph Server["Backend (Render)"]
-        direction TB
-        API[FastAPI Server]
-        Guard{PII Guard}
-        LG[LangGraph Logic]
-        
-        API --> Guard
-        Guard --> LG
-    end
-
-    subgraph Data["Database"]
-        DB[(ChromaDB)]
-    end
-
-    User((User)) -- "HTTPS" --> UI
-    UI -- "REST API" --> API
-    LG -- "Retrieve" --> DB
-```
+**Implementation:** `core/graph.py`, `core/nodes.py`, `core/state.py`.
+**Orchestration:** LangGraph `StateGraph` compiled with `MemorySaver`.
 
 **Routing logic (`route_after_safety`):**
-- `privacy_risk` → `END` (response already set by safety_guard).
+- `privacy_risk` → `END`.
 - `greeting` → `greeting` node → `END`.
 - `advisory` → `refusal` node → `END`.
 - Everything else → `retrieval` → `generation` → `END`.
 
 ---
 
-## 11. Technology Stack
+## 7. Technology Stack
 
 | Layer | Choice | Notes |
 |---|---|---|
-| **Infrastructure** | Docker Compose (`Dockerfile` + `docker-compose.yml`) | Two services: `api` + `ingestion`, shared `chroma_data` volume. |
-| **Vector DB** | ChromaDB — `PersistentClient` on disk at `./chroma_db` | Collection: `hdfc_funds`. Same path at ingest and query time. |
-| **Embeddings** | Google Gemini `models/gemini-embedding-001` | Requires `GOOGLE_API_KEY`. |
-| **LLM** | Gemini 1.5 Flash | Temperature 0. |
-| **Orchestration** | LangGraph `StateGraph` | Multi-node state machine. |
-| **Frontend** | Next.js | Tailwind CSS & Glassmorphism. |
+| **Infrastructure** | Docker Compose | Multi-container setup for local reliability. |
+| **Vector DB** | ChromaDB | Collection: `hdfc_funds`. |
+| **Embeddings** | Google Gemini `models/gemini-embedding-001` | High-dimensional semantic vectors. |
+| **LLM** | Google Gemini 1.5 Flash | Fast, high-reasoning engine for factual extraction. |
+| **Orchestration** | LangGraph `StateGraph` | Deterministic agent orchestration. |
+| **Frontend** | Next.js | Modern React framework with dynamic theming. |
+| **System Orchestration** | `run_pipeline.py` & `scheduler.py` | State-aware background automation. |
 
 ---
 
-## 14. Summary
+## 8. Summary
 
-The architecture is a **closed-book RAG system** designed for production reliability. It converts raw HTML into semantic vector embeddings daily and serves them via a deterministic LangGraph state machine, ensuring every answer is grounded in official data and every user interaction is secure.
+The architecture is a **closed-book RAG system** designed for production reliability. It maintains a secure boundary between your data ingestion (Local Automation phase) and your user interactions (Cloud Serving phase), ensuring every answer is grounded, cited, and compliant with financial regulations.
