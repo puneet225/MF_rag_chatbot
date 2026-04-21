@@ -15,7 +15,7 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
 # ─── Model Configuration ─────────────────────────────────────────────────────
-LLM_MODEL = os.getenv("LLM_MODEL", "models/gemini-1.5-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-1.5-flash")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
 LLM_TEMPERATURE = 0  # Deterministic for facts-only responses
 

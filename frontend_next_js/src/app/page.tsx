@@ -194,12 +194,15 @@ export default function FundFactChat() {
           }
         }));
       } else {
-        throw new Error('API Error');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server Error ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = { 
         role: 'assistant', 
-        content: `Connection Error: Could not reach the backend at ${API_BASE_URL}. Ensure your Vercel NEXT_PUBLIC_API_URL environment variable is correct and matches your Render URL.`,
+        content: error.message.includes('Server Error') 
+          ? `Backend Error: ${error.message}. The server is reachable but encountered an issue processing your request.`
+          : `Connection Error: Could not reach the backend at ${API_BASE_URL}. Ensure your Vercel NEXT_PUBLIC_API_URL environment variable is correct and matches your Render URL.`,
         isError: true
       };
       setSessions(prev => ({
