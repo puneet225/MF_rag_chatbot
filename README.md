@@ -41,7 +41,7 @@ flowchart TD
         direction TB
         Vercel[Vercel Frontend]
         Render[Render Backend]
-        Gemini[Google Gemini 1.5 Flash]
+        Gemini[Google Gemini 3 Flash Preview]
         DB_Cloud[(ChromaDB Instance)]
         
         GH -- "Auto-Deploy" --> Vercel
@@ -124,7 +124,7 @@ npm run dev
 | **Backend** | [FastAPI](https://fastapi.tiangolo.com/) (Python) |
 | **AI Orchestration** | [LangGraph](https://langchain-ai.github.io/langgraph/) |
 | **Vector Database** | [ChromaDB](https://docs.trychroma.com/) |
-| **LLM** | [Google Gemini](https://ai.google.dev/) (Flash 1.5 Latest & text-embedding-004) |
+| **LLM** | [Google Gemini](https://ai.google.dev/) (Flash 3 Preview & text-embedding-004) |
 | **Deployment** | [Vercel](https://vercel.com/) (Frontend) & [Render](https://render.com/) (Backend) |
 
 ---
