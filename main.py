@@ -131,12 +131,11 @@ def chat_endpoint(request: ChatRequest):
         )
 
     except Exception as e:
-        # Log full traceback server-side
+        # Log full traceback server-side, but don't leak it to the client
         logger.exception(f"[{request_id}] Unhandled error in /chat")
-        # TEMPORARY: Return full error for final diagnostic verification
         raise HTTPException(
             status_code=500,
-            detail=f"DEBUG ERROR: {str(e)}",
+            detail="An internal error occurred. Please try again later.",
         )
 
 
