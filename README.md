@@ -24,7 +24,7 @@ The following diagram illustrates the complete end-to-end flow of the **groww-fa
 
 ```mermaid
 flowchart TD
-    subgraph Local["Development & Automation (Local/GitHub)"]
+    subgraph Local["Data Ingestion & Master Orchestrator (Local/GitHub)"]
         direction TB
         P1[Phase 1: Scraper] --> P2[Phase 2: Normalizer]
         P2 --> P3[Phase 3: Chunker]
@@ -34,14 +34,14 @@ flowchart TD
         P4 -- "Update/Sync" --> DB_Local
         
         GH[GitHub Repository]
-        P4 -- "Auto-Push" --> GH
+        P4 -- "Auto-Commit State" --> GH
     end
 
-    subgraph Cloud["Cloud Infrastructure (Live Serving)"]
+    subgraph Cloud["Production Deployment (Cloud Runtime)"]
         direction TB
         Vercel[Vercel Frontend]
         Render[Render Backend]
-        Gemini[Google Gemini 1.5]
+        Gemini[Google Gemini 3.1]
         DB_Cloud[(ChromaDB Instance)]
         
         GH -- "Auto-Deploy" --> Vercel
@@ -124,7 +124,7 @@ npm run dev
 | **Backend** | [FastAPI](https://fastapi.tiangolo.com/) (Python) |
 | **AI Orchestration** | [LangGraph](https://langchain-ai.github.io/langgraph/) |
 | **Vector Database** | [ChromaDB](https://docs.trychroma.com/) |
-| **Embeddings & LLM** | [Google Gemini](https://ai.google.dev/) (Flash 1.5 & Embedding-001) |
+| **LLM** | [Google Gemini](https://ai.google.dev/) (Flash 3.1 & Embedding-001) |
 | **Deployment** | [Vercel](https://vercel.com/) (Frontend) & [Render](https://render.com/) (Backend) |
 
 ---

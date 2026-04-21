@@ -23,7 +23,7 @@ The diagram below provides a high-fidelity overview of the entire system, from l
 
 ```mermaid
 flowchart TD
-    subgraph Local["Development & Automation (Local/GitHub)"]
+    subgraph Local["Data Ingestion & Master Orchestrator (Local/GitHub)"]
         direction TB
         P1[Phase 1: Scraper] --> P2[Phase 2: Normalizer]
         P2 --> P3[Phase 3: Chunker]
@@ -33,14 +33,14 @@ flowchart TD
         P4 -- "Update/Sync" --> DB_Local
         
         GH[GitHub Repository]
-        P4 -- "Auto-Push" --> GH
+        P4 -- "Auto-Commit State" --> GH
     end
 
-    subgraph Cloud["Cloud Infrastructure (Live Serving)"]
+    subgraph Cloud["Production Deployment (Cloud Runtime)"]
         direction TB
         Vercel[Vercel Frontend]
         Render[Render Backend]
-        Gemini[Google Gemini 1.5]
+        Gemini[Google Gemini 3.1]
         DB_Cloud[(ChromaDB Instance)]
         
         GH -- "Auto-Deploy" --> Vercel
@@ -134,7 +134,7 @@ The ingestion pipeline transforms raw HTML into searchable vector embeddings thr
 | **Infrastructure** | Docker Compose | Multi-container setup for local reliability. |
 | **Vector DB** | ChromaDB | Collection: `hdfc_funds`. |
 | **Embeddings** | Google Gemini `models/gemini-embedding-001` | High-dimensional semantic vectors. |
-| **LLM** | Google Gemini 1.5 Flash | Fast, high-reasoning engine for factual extraction. |
+| **LLM** | Google Gemini 3.1 Flash | High-reasoning engine for factual extraction. |
 | **Orchestration** | LangGraph `StateGraph` | Deterministic agent orchestration. |
 | **Frontend** | Next.js | Modern React framework with dynamic theming. |
 | **System Orchestration** | `run_pipeline.py` & `scheduler.py` | State-aware background automation. |
