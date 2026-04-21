@@ -99,7 +99,7 @@ docker compose up --build
 
 - [📖 API Reference](API_DOCUMENTATION.md)
 - [☁️ Deployment Guide (Render/Vercel)](DEPLOYMENT_GUIDE.md)
-- [🏗️ Detailed Architecture](Docs/rag-architecture.md)
+- [🏗️ Detailed Architecture](ARCHITECTURE.md)
 
 ---
 

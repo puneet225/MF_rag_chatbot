@@ -1,6 +1,6 @@
 # RAG Architecture: HDFC Mutual Fund FAQ Assistant
 
-This document describes the complete retrieval-augmented generation (RAG) architecture for the facts-only mutual fund FAQ assistant defined in `Problem_statement.md`. It prioritises accuracy, provenance, and regulatory compliance over open-ended conversational ability.
+This document describes the complete retrieval-augmented generation (RAG) architecture for the facts-only mutual fund FAQ assistant defined in `Docs/Problem_statement.md`. It prioritises accuracy, provenance, and regulatory compliance over open-ended conversational ability.
 
 ---
 
@@ -224,7 +224,7 @@ START → classify_intent → safety_guard → [conditional routing]
 - **Model:** `gemini-3.1-flash-lite-preview`, temperature 0.
 - **Prompt:** System prompt instructs zero-shot classification into `factual`, `advisory`, `greeting`, or `privacy_risk`.
 - **Output:** Sets `state.intent` to the lowercase category string.
-- **Edge case:** Compound queries ("What is the expense ratio, and should I invest?") — the classifier may return `factual`, bypassing the advisory refusal. *(See Edge_Cases.md §3.)*
+- **Edge case:** Compound queries ("What is the expense ratio, and should I invest?") — the classifier may return `factual`, bypassing the advisory refusal. *(See Docs/Edge_Cases.md §3.)*
 
 #### Node 2: `safety_guard_node`
 - **Mechanism:** Regex-based PII detection, not LLM-based.
@@ -232,7 +232,7 @@ START → classify_intent → safety_guard → [conditional routing]
   - Aadhaar pattern: `[2-9]{1}[0-9]{3}\s[0-9]{4}\s[0-9]{4}` or 12-digit continuous.
 - **On match:** Overrides `state.intent` to `privacy_risk` and sets a templated refusal response.
 - **On no match:** Passes state through unchanged.
-- **Limitation:** Only catches PAN/Aadhaar; does not detect email, phone, or account numbers. *(See Edge_Cases.md §2.)*
+- **Limitation:** Only catches PAN/Aadhaar; does not detect email, phone, or account numbers. *(See Docs/Edge_Cases.md §2.)*
 
 #### Node 3: `refusal_node`
 - **Trigger:** `intent == "advisory"`.
@@ -322,7 +322,7 @@ Programmatic checks to run after generation, before returning to the user:
 - **Mechanism:** Regex in `safety_guard_node` (runs after intent classification, before routing).
 - **Patterns:** PAN (`[A-Z]{5}[0-9]{4}[A-Z]{1}`), Aadhaar (12-digit or 4-4-4 format).
 - **On detection:** Overrides intent to `privacy_risk`, sets a security-focused refusal message, route goes directly to `END`.
-- **Gap:** Does not yet detect email addresses, phone numbers, or bank account numbers. *(See Edge_Cases.md §2.)*
+- **Gap:** Does not yet detect email addresses, phone numbers, or bank account numbers. *(See Docs/Edge_Cases.md §2.)*
 
 ### 7.3 Privacy policy
 
@@ -341,7 +341,7 @@ Per `Problem_statement.md`, the system must not request, store, or process: PAN,
 ### 8.2 Context window policy
 
 - **Current:** Full thread message history is sent to LangGraph on every invocation via the `messages` state key with `add_messages` reducer.
-- **Risk:** Long-lived threads will accumulate unbounded history, increasing Gemini API token costs and latency. *(See Edge_Cases.md §5.)*
+- **Risk:** Long-lived threads will accumulate unbounded history, increasing Gemini API token costs and latency. *(See Docs/Edge_Cases.md §5.)*
 - **Recommended:** Implement a sliding window (last N turns, e.g. 4–6) for the LLM context while retaining full history in the checkpointer for UI rendering.
 
 ### 8.3 Concurrency
@@ -446,7 +446,7 @@ ChatResponse:
 | **PII detection is regex-only** | Misses emails, phone numbers, account numbers. | Expand regex patterns; optional NLP-based PII entity detection. |
 | **Unbounded context window** | Long threads accumulate full message history, inflating token costs. | Implement sliding window (last 4–6 turns) for LLM context. |
 
-For a comprehensive list of edge-case failure scenarios, see `Edge_Cases.md`.
+For a comprehensive list of edge-case failure scenarios, see `Docs/Edge_Cases.md`.
 
 ---
 
@@ -454,7 +454,7 @@ For a comprehensive list of edge-case failure scenarios, see `Edge_Cases.md`.
 
 | Deliverable (from `Problem_statement.md`) | Where it lives |
 |---|---|
-| README: setup, AMC/schemes, architecture, limitations | This file + `README.md` + `Problem_statement.md` + `Edge_Cases.md`. |
+| README: setup, AMC/schemes, architecture, limitations | This file + `README.md` + `Docs/Problem_statement.md` + `Docs/Edge_Cases.md`. |
 | Disclaimer snippet ("Facts-only. No investment advice.") | Next.js UI banner + `refusal_node` response text + generation system prompt. |
 | Multi-thread chat | §8: `MemorySaver` checkpointer keyed by `thread_id`; API accepts `thread_id` per request. |
 | Facts-only + one citation + footer | §5.2 (generation node) + §6.1 (output contract): system prompt enforces ≤ 3 sentences, single URL, dated footer. |
