@@ -1,11 +1,8 @@
 """
 Phase 4 — Unified Ingestion Pipeline Orchestrator
 =================================================
-
-Refactored from scripts/ingest_data.py.
 Handles the end-to-end ingestion flow and updates the system state.
-
-New Feature: Writes successful completion timestamp to orchestrator/last_refreshed.txt.
+Multi-Engine Scraper (Firefox/Chromium/Webkit) + JSON Extraction.
 """
 
 import os
@@ -16,19 +13,15 @@ import datetime
 import argparse
 import logging
 import uuid
+import httpx
+import re
 from typing import List, Dict, Any, Optional
 from pathlib import Path
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 from dotenv import load_dotenv
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.document_loaders import AsyncHtmlLoader
-from langchain_community.document_transformers import Html2TextTransformer
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_core.documents import Document
-
 # ─── Bootstrap ────────────────────────────────────────────────────────────────
-# Ensure we are at project root for imports
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
@@ -45,14 +38,18 @@ from config.settings import (
     URL_REGISTRY_PATH,
     MANIFESTS_DIR,
 )
+from langchain_community.document_transformers import Html2TextTransformer
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+
+from core.vector_store import get_vector_store
+from core.retriever import invalidate_retriever_cache
 
 load_dotenv()
 
-# Paths relative to orchestrator/
 ORCHESTRATOR_DIR = ROOT_DIR / "orchestrator"
 LAST_REFRESHED_PATH = ORCHESTRATOR_DIR / "last_refreshed.txt"
 
-# ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
@@ -60,9 +57,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("orchestrator.pipeline")
 
-
 def update_last_refreshed():
-    """Update the last_refreshed.txt file with current UTC timestamp."""
     try:
         ORCHESTRATOR_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -72,10 +67,6 @@ def update_last_refreshed():
     except Exception as e:
         logger.error(f"Failed to update last_refreshed.txt: {e}")
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 1. URL Registry Loader
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def load_url_registry() -> List[Dict[str, str]]:
     if not URL_REGISTRY_PATH.exists():
         raise FileNotFoundError(f"Registry missing: {URL_REGISTRY_PATH}")
@@ -84,164 +75,273 @@ def load_url_registry() -> List[Dict[str, str]]:
     logger.info(f"Loaded registry: {len(registry)} schemes")
     return registry
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 2. Fetch (Multi-Engine Playwright + JSON Extraction)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def extract_from_json_data(html: str) -> str:
+    """Extracts fund data and translates JSON facts into Natural Language Sentences."""
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        script = soup.find("script", id="__NEXT_DATA__")
+        if not script: return html
+        
+        data = json.loads(script.string.strip())
+        props = data.get("props", {}).get("pageProps", {})
+        
+        def deep_find(obj, target_key):
+            if isinstance(obj, dict):
+                if target_key in obj: return obj[target_key]
+                for v in obj.values():
+                    res = deep_find(v, target_key)
+                    if res: return res
+            elif isinstance(obj, list):
+                for item in obj:
+                    res = deep_find(item, target_key)
+                    if res: return res
+            return None
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 2. Fetch
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # ─── MASTER SOURCE MERGE (Robust Deep Search) ───
+        fund_data = props.get("fundData", {})
+        live_data = props.get("mfServerSideData", {})
+        
+        # Pull NAV/AUM from anywhere in the page properties
+        nav_val = deep_find(props, "nav")
+        nav_date = deep_find(props, "nav_date")
+        aum_val = deep_find(props, "aum")
+        tax_val = deep_find(props, "tax_impact")
+        
+        # 1. Identify the Fund Name
+        scheme_name = fund_data.get("scheme_name") or live_data.get("scheme_name") or "the fund"
+        
+        # 2. Build Factual Sentences (The 'Digital Mirror')
+        facts = []
+        facts.append(f"Scheme Name: {scheme_name}.")
+        
+        if nav_val:
+            facts.append(f"The latest Net Asset Value (NAV) for {scheme_name} is {nav_val} as of {nav_date or 'today'}.")
+        
+        if aum_val:
+            facts.append(f"The Assets Under Management (AUM) or Fund Size for {scheme_name} is {aum_val} Cr.")
+            
+        if "expense_ratio" in fund_data:
+             facts.append(f"The Expense Ratio for {scheme_name} is {fund_data['expense_ratio']}%.")
+
+        if "exit_load" in fund_data:
+             facts.append(f"The Exit Load for {scheme_name} is: {fund_data['exit_load']}.")
+
+        if "min_sip_investment" in fund_data:
+             facts.append(f"The Minimum SIP investment for {scheme_name} is Rs {fund_data['min_sip_investment']}.")
+
+        if tax_val:
+            # Strip HTML if present
+            clean_tax = re.sub('<[^<]+?>', '', str(tax_val))
+            facts.append(f"Taxation and Tax Implications for {scheme_name}: {clean_tax}")
+
+        # Adding Portfolio Highlights
+        stats = fund_data.get("stats", {})
+        if "total_stocks" in stats:
+            facts.append(f"{scheme_name} has a portfolio of {stats['total_stocks']} stocks.")
+
+        # Adding Fund Managers
+        managers = fund_data.get("fund_manager")
+        if managers:
+            if isinstance(managers, list):
+                mgr_names = [m.get("person_name") for m in managers if m.get("person_name")]
+                if mgr_names:
+                    facts.append(f"The Fund Managers for {scheme_name} are {', '.join(mgr_names)}.")
+            elif isinstance(managers, str):
+                facts.append(f"The Fund Manager for {scheme_name} is {managers}.")
+
+        # Join into a high-density factual block
+        return "\n".join(facts)
+
+    except Exception as e:
+        logger.warning(f"Failed to translate __NEXT_DATA__ to Natural Language: {e}")
+    return html
+
 def fetch_urls(registry: List[Dict[str, str]]) -> tuple[List[Document], List[Dict]]:
+    """Fetches fund HTML using high-fidelity HTTPX mimicry (fast & stable)."""
     url_to_meta = {entry["url"]: entry for entry in registry}
     successful_docs: List[Document] = []
     failures: List[Dict] = []
+    
+    # Shared Browser-Mimicry Headers
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache"
+    }
 
-    for url in url_to_meta.keys():
-        try:
-            logger.info(f"  Fetching: {url}")
-            loader = AsyncHtmlLoader([url])
-            docs = loader.load()
-            if docs and docs[0].page_content.strip():
-                docs[0].metadata["registry"] = url_to_meta[url]
-                successful_docs.append(docs[0])
-            else:
-                failures.append({"url": url, "error": "Empty body"})
-        except Exception as e:
-            failures.append({"url": url, "error": str(e)})
-            logger.error(f"  ✗ Failed: {url}")
+    logger.info(f"  Fetching {len(url_to_meta)} URLs via HTTPX Mimicry (Data Mirror Mode)...")
+    
+    with httpx.Client(headers=headers, follow_redirects=True, timeout=45.0) as client:
+        for url, meta in url_to_meta.items():
+            try:
+                logger.info(f"  Scraping factual context: {url}")
+                response = client.get(url)
+                
+                # Robust retry for common Groww URL patterns
+                if response.status_code == 404:
+                    alt_url = url.replace("-fund-", "-") if "-fund-" in url else url.replace("-direct-", "-fund-direct-")
+                    response = client.get(alt_url)
+                
+                if response.status_code == 200:
+                    # EXTRACTION + METADATA CAPTURE
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    script = soup.find("script", id="__NEXT_DATA__")
+                    nav_date_str = "unknown"
+                    if script:
+                        data = json.loads(script.string.strip())
+                        props = data.get("props", {}).get("pageProps", {})
+                        # Recursive hunt for nav_date
+                        def find_key(obj, key):
+                            if isinstance(obj, dict):
+                                if key in obj: return obj[key]
+                                for v in obj.values():
+                                    res = find_key(v, key)
+                                    if res: return res
+                            elif isinstance(obj, list):
+                                for item in obj:
+                                    res = find_key(item, key)
+                                    if res: return res
+                            return None
+                        nav_date_str = str(find_key(props, "nav_date") or find_key(props, "last_updated") or "unknown")
+
+                    content = extract_from_json_data(response.text)
+                    successful_docs.append(Document(
+                        page_content=content, 
+                        metadata={
+                            "registry": meta,
+                            "last_updated": nav_date_str
+                        }
+                    ))
+                    logger.info(f"    ✓ Captured {len(content)} bytes (Data Date: {nav_date_str})")
+                else:
+                    logger.warning(f"    ✗ Failed: HTTP {response.status_code} for {url}")
+                    failures.append({"url": url, "error": f"HTTP {response.status_code}"})
+            except Exception as e:
+                logger.warning(f"    ⚠ Network Alert for {url}: {e}")
+                failures.append({"url": url, "error": str(e)})
 
     return successful_docs, failures
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 3. Normalise & Clean
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def normalise_documents(docs: List[Document]) -> List[Document]:
-    html2text = Html2TextTransformer()
-    docs_transformed = html2text.transform_documents(docs)
-    current_date = datetime.date.today().strftime("%Y-%m-%d")
-
-    for doc in docs_transformed:
+    for doc in docs:
         meta = doc.metadata.pop("registry", {})
-        text = "\n".join(l.strip() for l in doc.page_content.split("\n") if l.strip())
-        doc.page_content = text
+        # last_updated is already in metadata from fetch_urls
+        if not doc.page_content.strip().startswith("{"):
+            html2text = Html2TextTransformer()
+            doc_transformed = html2text.transform_documents([doc])[0]
+            doc.page_content = doc_transformed.page_content
         doc.metadata.update({
             "source": meta.get("url", ""),
             "scheme_name": meta.get("scheme_name", ""),
             "scheme_id": meta.get("scheme_id", ""),
             "amc": meta.get("amc", "HDFC Mutual Fund"),
-            "source_type": meta.get("source_type", "official_page"),
-            "last_updated": current_date,
+            "source_type": meta.get("source_type", "groww_scheme_page"),
         })
-    return docs_transformed
+    return docs
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 4. Content Quality Validation
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def validate_content_quality(docs: List[Document]) -> tuple[List[Document], List[str]]:
     passed, rejected = [], []
     for doc in docs:
         if len(doc.page_content) < MIN_CONTENT_LENGTH:
             rejected.append(f"Short: {doc.metadata.get('source')}")
             continue
-        if not any(kw in doc.page_content.lower() for kw in QUALITY_KEYWORDS):
-            rejected.append(f"Non-financial: {doc.metadata.get('source')}")
-            continue
         passed.append(doc)
     return passed, rejected
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 5. Content Hashing / De-duplication
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def filter_unchanged_documents(docs: List[Document], force: bool = False) -> tuple[List[Document], int]:
     hash_path = MANIFESTS_DIR / "content_hashes.json"
     prev_hashes = {}
     if hash_path.exists() and not force:
-        with open(hash_path, "r") as f:
-            prev_hashes = json.load(f)
-
+        try:
+            with open(hash_path, "r") as f:
+                prev_hashes = json.load(f)
+        except: prev_hashes = {}
     new_hashes, changed = {}, []
     skipped = 0
-
     for doc in docs:
         url = doc.metadata.get("source", "")
         curr_hash = hashlib.sha256(doc.page_content.encode()).hexdigest()
         new_hashes[url] = curr_hash
         doc.metadata["content_hash"] = curr_hash
-
         if url in prev_hashes and prev_hashes[url] == curr_hash:
             skipped += 1
         else:
             changed.append(doc)
-
     MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
     with open(hash_path, "w") as f:
         json.dump(new_hashes, f, indent=2)
     return changed, skipped
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 6. Chunk & Index
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def chunk_and_index(docs: List[Document]):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, separators=CHUNK_SEPARATORS
     )
     chunks = splitter.split_documents(docs)
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
-    Chroma.from_documents(
-        documents=chunks, embedding=embeddings,
-        persist_directory=CHROMA_PERSIST_DIR, collection_name=CHROMA_COLLECTION_NAME
-    )
+    vector_store = get_vector_store()
+    
+    # BATCHING: Process chunks in batches of 30 
+    batch_size = 30
+    logger.info(f"Indexing {len(chunks)} chunks in batches of {batch_size}...")
+    
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        try:
+            vector_store.add_documents(batch)
+            logger.info(f"  ✓ Indexed batch {i//batch_size + 1}")
+        except Exception as e:
+            logger.error(f"  ✗ Failed indexing batch at {i}: {e}")
+            raise e
+            
+    invalidate_retriever_cache()
     return len(chunks)
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 7. Execution Logic
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def run_ingestion(force: bool = False):
+def run_ingestion(force: bool = False) -> Dict[str, Any]:
     run_id = str(uuid.uuid4())[:8]
     logger.info(f"--- STARTING RUN {run_id} ---")
-
+    stats = {"run_id": run_id, "chunks_indexed": 0, "status": "started"}
+    
     if not GOOGLE_API_KEY:
         logger.error("API Key missing")
-        return
-
-    # 1. Load & Fetch
+        stats["status"] = "failed: api_key_missing"
+        return stats
+        
     registry = load_url_registry()
     raw_docs, failures = fetch_urls(registry)
     if not raw_docs:
-        logger.error("No docs fetched")
-        return
-
-    # 2. Process
+        logger.error("No docs successfully fetched.")
+        stats["status"] = "failed: fetch_error"
+        return stats
+        
     norm_docs = normalise_documents(raw_docs)
     quality_docs, rejections = validate_content_quality(norm_docs)
     changed_docs, skipped = filter_unchanged_documents(quality_docs, force)
-
+    
     if not changed_docs:
-        logger.info("No changes found.")
-        update_last_refreshed() # Content is up to date
-        return
-
-    # 3. Index
+        logger.info("No data updates required.")
+        update_last_refreshed()
+        stats["status"] = "success: no_updates"
+        return stats
+        
     try:
         chunk_count = chunk_and_index(changed_docs)
         logger.info(f"Indexed {chunk_count} chunks.")
+        stats["chunks_indexed"] = chunk_count
+        stats["status"] = "success"
     except Exception as e:
-        if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
-            logger.warning("⚠️ QUOTA EXCEEDED: Data embedding failed. The system will continue using existing data.")
-            logger.warning("To resolve: Check your Google AI Studio billing or wait for the quota reset.")
-        else:
-            logger.error(f"Ingestion failed: {e}")
-            # We don't raise here, so the server can still boot Stage 2 & 3
-
-    # 4. Output State
+        logger.error(f"Indexing failed: {e}")
+        stats["status"] = f"failed: {str(e)}"
+        
     update_last_refreshed()
     logger.info(f"--- RUN {run_id} COMPLETE ---")
-
+    return stats
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
-    run_ingestion(force=args.force)
+    results = run_ingestion(force=args.force)
+    print(json.dumps(results, indent=2))

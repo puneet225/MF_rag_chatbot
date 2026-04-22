@@ -42,16 +42,10 @@ app = FastAPI(
     version="2.1.0",
 )
 
-# CORS — explicit for production, wildcard fallback
+# CORS — simplified for local/cloud flexibility
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://milestone-1-lemon.vercel.app",
-        "https://milestone-1-kappa.vercel.app",
-        "https://milestone-1.vercel.app",
-        "http://localhost:3000",
-        "*"
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -145,8 +139,31 @@ async def health_check():
     return {
         "status": "ok",
         "service": "HDFC Mutual Fund RAG API",
-        "version": "2.0.0",
+        "version": "2.1.0",
     }
+
+
+@app.post("/admin/ingest")
+async def trigger_ingestion(token: str = None):
+    """
+    Protected endpoint to trigger the RAG ingestion pipeline.
+    Expected to be called by GitHub Actions daily.
+    """
+    expected_token = os.getenv("ADMIN_SECRET_KEY")
+    if not expected_token or token != expected_token:
+        logger.warning(f"Unauthorized ingestion attempt with token: {token}")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    from orchestrator.run_pipeline import run_ingestion
+    from starlette.concurrency import run_in_threadpool
+    try:
+        logger.info("Starting remote ingestion trigger (in threadpool)...")
+        # Running in a threadpool solves the Playwright Sync vs Asyncio conflict
+        stats = await run_in_threadpool(run_ingestion, force=True)
+        return {"status": "success", "stats": stats}
+    except Exception as e:
+        logger.exception("Remote ingestion failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

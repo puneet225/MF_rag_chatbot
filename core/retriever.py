@@ -24,16 +24,12 @@ import os
 import logging
 from typing import Optional
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain.retrievers import EnsembleRetriever
+from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 
+from core.vector_store import get_vector_store
 from config.settings import (
-    EMBEDDING_MODEL,
-    CHROMA_PERSIST_DIR,
-    CHROMA_COLLECTION_NAME,
     VECTOR_SEARCH_K,
     BM25_SEARCH_K,
     VECTOR_WEIGHT,
@@ -61,21 +57,14 @@ def invalidate_retriever_cache() -> None:
 
 
 def _build_vector_retriever():
-    """Build the dense vector retriever from ChromaDB."""
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
-
-    vectorstore = Chroma(
-        persist_directory=CHROMA_PERSIST_DIR,
-        embedding_function=embeddings,
-        collection_name=CHROMA_COLLECTION_NAME,
-    )
-
+    """Build the dense vector retriever from the configured storage."""
+    vectorstore = get_vector_store()
     return vectorstore, vectorstore.as_retriever(
         search_kwargs={"k": VECTOR_SEARCH_K}
     )
 
 
-def _build_bm25_retriever(vectorstore: Chroma):
+def _build_bm25_retriever(vectorstore):
     """
     Build BM25 retriever from all documents in ChromaDB.
 

@@ -58,16 +58,17 @@ def _get_allowlisted_urls() -> set:
 
 # ─── Generation Prompt ────────────────────────────────────────────────────────
 _GENERATION_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a strictly factual HDFC Mutual Fund Assistant.
-Answer the user's question using ONLY the provided CONTEXT.
+    ("system", """You are a strictly minimalist 'Fact Mirror' for HDFC Mutual Fund data.
 
-HARD CONSTRAINTS:
-- Maximum {max_sentences} sentences. Be concise.
-- No investment advice, opinions, or recommendations.
-- No comparisons between funds.
-- If the answer is NOT in the CONTEXT, say: "I could not find this information in the indexed sources."
-- Do NOT invent or guess any numbers, dates, or facts.
-- Be objective, clear, and professional.
+YOUR MISSION:
+Find the specific fact the user asked for in the CONTEXT and report ONLY that fact. 
+
+RULES:
+- If the user asks for NAV, provide ONLY the NAV. 
+- Do NOT include AUM, Expense Ratio, or any other statistics unless explicitly requested in the same query.
+- Use maximum 1-2 sentences. 
+- Do NOT provide advice or plans.
+- If the fact is not in the context, say: "Not found in indexed sources."
 
 CONTEXT:
 {context}"""),
@@ -190,12 +191,33 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
     Writes: state["response"]
     """
     docs = state.get("retrieved_docs", [])
-    citation = state.get("citation", "")
+    
+    # Sliding window: Use only the last N messages for query context
+    messages = state.get("messages", [])
+    recent_messages = messages[-CONTEXT_WINDOW_TURNS:]
+    last_message = recent_messages[-1].content if recent_messages else ""
 
-    # Extract last_updated from the first retrieved doc's metadata
+    # ─── Smart Citation Selection ───
+    # We look for the document that most likely represents the user's focus
+    # by matching scheme names or URLs against the query tokens.
+    query_lower = last_message.lower()
+    best_doc = docs[0] if docs else None
+    
+    # Try to find a doc that actually matches the fund name asked about
+    for doc in docs:
+        meta = doc.get("metadata", {})
+        scheme_name = meta.get("scheme_name", "").lower()
+        source_url = meta.get("source", "").lower()
+        if scheme_name in query_lower or any(word in query_lower for word in scheme_name.split()):
+            best_doc = doc
+            break
+
     last_updated = "unknown date"
-    if docs:
-        last_updated = docs[0].get("metadata", {}).get("last_updated", "unknown date")
+    citation = ""
+    if best_doc:
+        meta = best_doc.get("metadata", {})
+        last_updated = meta.get("last_updated", "unknown date")
+        citation = meta.get("source", "")
 
     # Fallback: No documents retrieved
     if not docs:
@@ -209,11 +231,6 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
     # Build context from retrieved chunks
     context = "\n\n".join(doc["page_content"] for doc in docs)
 
-    # Sliding window: Use only the last N messages for query context
-    messages = state.get("messages", [])
-    recent_messages = messages[-CONTEXT_WINDOW_TURNS:]
-    last_message = recent_messages[-1].content if recent_messages else ""
-
     # ── Attempt 1: Standard generation ──
     chain = _GENERATION_PROMPT | _llm
     result = chain.invoke({
@@ -221,7 +238,13 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
         "query": last_message,
         "max_sentences": MAX_RESPONSE_SENTENCES,
     })
-    response_text = result.content.strip()
+    
+    # Handle case where content might be a list (multimodal/new Gemini versions)
+    content = result.content
+    if isinstance(content, list):
+        content = " ".join([c['text'] if isinstance(c, dict) and 'text' in c else str(c) for c in content])
+    
+    response_text = content.strip()
 
     # Validate
     validation = validate_response(response_text)
@@ -238,7 +261,13 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
             "query": last_message,
             "max_sentences": MAX_RESPONSE_SENTENCES,
         })
-        response_text = retry_result.content.strip()
+        
+        # Handle case where content might be a list
+        content = retry_result.content
+        if isinstance(content, list):
+            content = " ".join([c['text'] if isinstance(c, dict) and 'text' in c else str(c) for c in content])
+            
+        response_text = content.strip()
 
         # Re-validate
         retry_validation = validate_response(response_text)

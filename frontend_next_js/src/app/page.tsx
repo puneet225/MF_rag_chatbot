@@ -148,10 +148,10 @@ export default function FundFactChat() {
     if (!text.trim() || !activeSessionId) return;
 
     // Clean up URL: Remove trailing slash if present to avoid //chat issues
-    let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-    if (API_BASE_URL.endsWith('/')) {
-      API_BASE_URL = API_BASE_URL.slice(0, -1);
-    }
+    // Use internal proxy /api to avoid CORS issues locally
+    const API_BASE_URL = '/api';
+    
+    console.log("🛠️ Using internal proxy URL:", `${API_BASE_URL}/chat`);
 
     const userMessage = { role: 'user', content: text };
     
@@ -256,24 +256,46 @@ export default function FundFactChat() {
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto px-4">
-          <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2">History</h2>
-          <div className="space-y-1">
-            {Object.entries(sessions).map(([id, session]) => (
-              <button
-                key={id}
-                onClick={() => setActiveSessionId(id)}
-                className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${
-                  activeSessionId === id 
-                    ? 'bg-green-50 dark:bg-groww/10 text-groww font-medium' 
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
-              >
-                <MessageSquare size={18} className={activeSessionId === id ? "text-groww" : "text-gray-400 dark:text-gray-500"} />
-                <span className="truncate">{session.title}</span>
-              </button>
-            ))}
-          </div>
+        <div className="flex-1 overflow-y-auto px-4 space-y-6">
+          <section>
+            <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2">History</h2>
+            <div className="space-y-1">
+              {Object.entries(sessions).map(([id, session]) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveSessionId(id)}
+                  className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${
+                    activeSessionId === id 
+                      ? 'bg-green-50 dark:bg-groww/10 text-groww font-medium' 
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <MessageSquare size={18} className={activeSessionId === id ? "text-groww" : "text-gray-400 dark:text-gray-500"} />
+                  <span className="truncate">{session.title}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
+              <BarChart2 size={12} />
+              Supported Funds
+            </h2>
+            <div className="space-y-1">
+              {[
+                "HDFC Mid Cap Opportunities",
+                "HDFC Equity Fund (Flexi)",
+                "HDFC Focused 30",
+                "HDFC ELSS Tax Saver",
+                "HDFC Silver ETF FOF"
+              ].map((fund, idx) => (
+                <div key={idx} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-l-2 border-transparent hover:border-groww transition-colors cursor-default whitespace-nowrap overflow-hidden text-ellipsis">
+                  {fund}
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
         
         {/* Dark Mode Toggle */}

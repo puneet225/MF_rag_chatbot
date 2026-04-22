@@ -53,7 +53,13 @@ def classify_intent_node(state: ChatState) -> Dict[str, Any]:
 
     chain = _INTENT_PROMPT | _llm
     result = chain.invoke({"query": last_message})
-    intent = result.content.strip().lower()
+    
+    # Handle case where content might be a list (multimodal/new Gemini versions)
+    content = result.content
+    if isinstance(content, list):
+        content = " ".join([c['text'] if isinstance(c, dict) and 'text' in c else str(c) for c in content])
+    
+    intent = content.strip().lower()
 
     # Guard against unexpected model output — default to factual
     valid_intents = {"factual", "advisory", "greeting", "privacy_risk"}

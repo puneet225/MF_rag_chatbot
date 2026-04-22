@@ -8,23 +8,17 @@ set -e # Exit on any error
 
 echo "🚀 Starting groww-factor boot sequence..."
 
-# 1. Initial Data Ingestion
+# 1. Initial Data Ingestion (Background)
 # -------------------------
-# Ensures that even on a fresh cold-boot, the ChromaDB vector store
-# is populated with the latest facts from the 5 fund sources.
-echo "[Stage 1/3] Running initial data ingestion..."
-python orchestrator/run_pipeline.py
+# Ensures that even on a fresh cold-boot, the vector store
+# is populated. We run this in the background so the server can bind
+# to the port immediately and pass Render's health check.
+echo "[Stage 1/2] Launching initial data ingestion in background..."
+python orchestrator/run_pipeline.py &
 
-# 2. Background Scheduler
-# -----------------------
-# Launches the daily 9:30 AM scheduler in the background.
-# This stays alive for the duration of the web service.
-echo "[Stage 2/3] Launching daily 9:30 AM scheduler..."
-python orchestrator/scheduler.py &
-
-# 3. FastAPI Server
+# 2. FastAPI Server
 # -----------------
-# Finally, boot the FastAPI server using Uvicorn.
+# Boot the FastAPI server using Uvicorn.
 # We bind to 0.0.0.0 and use the dynamic $PORT assigned by Render.
-echo "[Stage 3/3] Booting FastAPI server on port ${PORT:-8001}..."
+echo "[Stage 2/2] Booting FastAPI server on port ${PORT:-8001}..."
 uvicorn main:app --host 0.0.0.0 --port ${PORT:-8001}

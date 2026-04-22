@@ -1,0 +1,19 @@
+2026-04-23 00:57:26 | INFO    | api | Starting API on 0.0.0.0:8011
+INFO:     Started server process [73570]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8011 (Press CTRL+C to quit)
+2026-04-23 00:57:30 | INFO    | api | [3501fd16] POST /chat — message='What is the NAV?'
+2026-04-23 00:57:30 | INFO    | api | [3501fd16] Invoking LangGraph (thread=diag)
+2026-04-23 00:57:30 | INFO    | google_genai.models | AFC is enabled with max remote calls: 10.
+2026-04-23 00:57:31 | INFO    | httpx | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent "HTTP/1.1 200 OK"
+2026-04-23 00:57:32 | INFO    | retriever | Building retriever (first call or cache invalidated)...
+2026-04-23 00:57:32 | INFO    | vector_store | Using local ChromaDB at ./chroma_db
+/Users/puneetmall/RAG_mutual_fund_chatbot/core/vector_store.py:35: LangChainDeprecationWarning: The class `Chroma` was deprecated in LangChain 0.2.9 and will be removed in 1.0. An updated version of the class exists in the `langchain-chroma package and should be used instead. To use it run `pip install -U `langchain-chroma` and import as `from `langchain_chroma import Chroma``.
+  return Chroma(
+2026-04-23 00:57:33 | INFO    | retriever | BM25 index built with 363 documents.
+2026-04-23 00:57:33 | INFO    | retriever | Hybrid retriever ready: vector(0.6) + BM25(0.4), k=3/3
+2026-04-23 00:57:33 | INFO    | google_genai.models | AFC is enabled with max remote calls: 10.
+2026-04-23 00:57:35 | INFO    | httpx | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent "HTTP/1.1 200 OK"
+2026-04-23 00:57:35 | INFO    | api | [3501fd16] Graph complete — intent=factual
+INFO:     127.0.0.1:53845 - "POST /chat HTTP/1.1" 200 OK

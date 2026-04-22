@@ -1,0 +1,18 @@
+name: Daily Fund Ingestion
+
+on:
+  schedule:
+    # 16:30 UTC is 10:00 PM IST
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+    # Allows manual triggering from the GitHub Actions UI
+
+jobs:
+  run-ingestion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Ingestion
+        run: |
+          curl -X POST "${{ secrets.RENDER_BACKEND_URL }}/admin/ingest?token=${{ secrets.INGEST_TOKEN }}" \
+               -H "Content-Type: application/json" \
+               --fail
