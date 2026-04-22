@@ -15,10 +15,14 @@ chroma_db/
 data/manifests/
 *.log
 scratch/
-tests/
 last_refreshed.txt
 server.log
 server_diag.log
+
+# ─── Internal Diagnostics (Reference Only) ────────────────────────────────────
+tests/phase2_test.py
+tests/test_langchain_gemini.py
+tests/test_find_good_questions.py
 
 # ─── Node / Frontend ─────────────────────────────────────────────────────────
 frontend_next_js/node_modules/
