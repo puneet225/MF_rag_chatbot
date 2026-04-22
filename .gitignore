@@ -8,10 +8,17 @@ __pycache__/
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 .env
+.env.local
 
-# ─── Data (rebuilt by ingestion pipeline) ─────────────────────────────────────
+# ─── Data & Logs (Reference Only) ──────────────────────────────────────────────
 chroma_db/
 data/manifests/
+*.log
+scratch/
+tests/
+last_refreshed.txt
+server.log
+server_diag.log
 
 # ─── Node / Frontend ─────────────────────────────────────────────────────────
 frontend_next_js/node_modules/
