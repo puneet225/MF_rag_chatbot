@@ -38,7 +38,22 @@ graph LR
 
 ---
 
-## 🏗️ Getting Started
+## 🚀 Quick Start — Get Local Access
+
+Instantiate the entire RAG pipeline and frontend ecosystem:
+
+```bash
+# 1. Clone the master repository
+git clone https://github.com/puneet225/MF_rag_chatbot.git
+cd MF_rag_chatbot
+
+# 2. Setup your Environment
+# (Follow section 1 below to add your API keys)
+```
+
+---
+
+## 🏗️ Detailed Installation
 
 ### 1. Environment Configuration
 Create a `.env` file in the root:
