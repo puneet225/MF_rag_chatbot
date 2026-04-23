@@ -11,7 +11,6 @@ pydantic
 
 # ─── Ingestion Pipeline ──────────────────────────────────────────────────────
 playwright
-fastembed
 beautifulsoup4
 html2text
 unstructured

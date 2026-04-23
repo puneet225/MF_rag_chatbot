@@ -18,9 +18,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # gemini-flash-latest is verified available on this key.
 LLM_MODEL = os.getenv("LLM_MODEL", "models/gemini-flash-latest")
 
-# BGE-small-en-v1.5 via FastEmbed is used for production-grade efficiency (ONNX).
-# This model produces 384-dim vectors.
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+# gemini-embedding-001 is used for production-grade stability and zero local compilation.
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-001")
 LLM_TEMPERATURE = 0  # Deterministic for facts-only responses
 
 # ─── Vector Store Configuration ───────────────────────────────────────────────

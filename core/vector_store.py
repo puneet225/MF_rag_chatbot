@@ -2,8 +2,9 @@ import os
 import logging
 from typing import Union
 from langchain_community.vectorstores import Chroma, Qdrant
-from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from config.settings import (
+    GOOGLE_API_KEY,
     VECTOR_STORE_TYPE,
     CHROMA_PERSIST_DIR,
     CHROMA_COLLECTION_NAME,
@@ -19,7 +20,7 @@ def get_vector_store() -> Union[Chroma, Qdrant]:
     Factory function to return the configured vector store instance.
     Defaults to Chroma for local dev and Qdrant for production if configured.
     """
-    embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
+    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL, google_api_key=GOOGLE_API_KEY)
     
     if VECTOR_STORE_TYPE.lower() == "qdrant" and QDRANT_URL:
         logger.info(f"Connecting to Qdrant Cloud at {QDRANT_URL}...")
