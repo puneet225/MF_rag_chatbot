@@ -11,6 +11,17 @@ jobs:
   run-ingestion:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate Secrets
+        run: |
+          if [ -z "${{ secrets.RENDER_BACKEND_URL }}" ]; then
+            echo "❌ ERROR: RENDER_BACKEND_URL secret is missing!"
+            exit 1
+          fi
+          if [ -z "${{ secrets.INGEST_TOKEN }}" ]; then
+            echo "❌ ERROR: INGEST_TOKEN secret is missing!"
+            exit 1
+          fi
+
       - name: Trigger Render Ingestion
         run: |
           curl -X POST "${{ secrets.RENDER_BACKEND_URL }}/admin/ingest?token=${{ secrets.INGEST_TOKEN }}" \
