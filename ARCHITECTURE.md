@@ -1,64 +1,70 @@
-# 🏗️ Groww-Factor Architecture Deep-Dive
+# 🏗️ Groww-Factor: Technical Architecture Specification
 
-Groww-Factor is a high-precision RAG (Retrieval-Augmented Generation) system built to solve the "Hallucination Problem" in financial AI. Instead of relying on fuzzy text chunks, it implements a **Digital Mirror** architecture that translates official JSON data into a dedicated factual vector store.
+Groww-Factor is a production-grade RAG (Retrieval-Augmented Generation) system optimized for financial data integrity. This document provides the deep-dive technical reasoning behind our architectural choices.
 
 ---
 
-## 1. System Workflow
+## 1. The Technology Stack & Rationale
 
-```mermaid
-graph TD
-    A[AMC Portals] -->|HTTPX Mimicry| B[Orchestrator]
-    B -->|Recursive Scrape| C[Raw JSON Data]
-    C -->|Natural Language Translation| D[Factual Digital Mirror]
-    D -->|Google Cloud Embeddings| E[(ChromaDB)]
-    
-    U[User Query] -->|Router| F{Intent Analysis}
-    F -->|Factual Query| G[Retriever]
-    F -->|Advisory Request| H[Guardrail Block]
-    
-    G -->|Context| I[Gemini Flash Generator]
-    E -->|High-Density Retrieval| G
-    I -->|Fact-Checked Response| J[Final Output + Citations]
-```
+| Layer | Component | Selection Rationale |
+| :--- | :--- | :--- |
+| **LLM Model** | **Gemini 1.5 Flash** | Chosen for its **High-Speed** inference and superior **JSON/Structure understanding**, which is critical for parsing complex fund metadata without hallucinations. It provides 1M+ context window while maintaining low latency. |
+| **Embeddings** | **Google GenAI (`gemini-embedding-001`)** | **Strategic Pivot**: We initially tested BGE via FastEmbed, but pivoted to Google Cloud Embeddings to ensure **zero-compilation builds on Render**. It eliminates Rust dependencies and leverages cloud-scale vectorization with 0MB impact on local RAM. |
+| **Orchestration** | **LangGraph** | Provides **State-Machine Control**. Unlike linear chains, LangGraph allows for **Conditional Routing** (Safety Guardrails) and **PII Scrubbing** before the data reaches the LLM. |
+| **Vector Store** | **ChromaDB** | Selected for its **Lightweight Footprint** and reliability in containerized environments. It stores the "Digital Mirror" facts with high-fidelity consistency. |
+| **Frontend** | **Next.js 14** | Chosen for **Server-Side Rendering (SSR)** and **Liquid Responsiveness**, providing a premium, app-like experience on both mobile and desktop. |
 
 ---
 
 ## 2. The "Digital Mirror" Ingestion Pipeline
 
-The Orchestrator is the heart of the system, designed for zero-latency factual alignment.
+The core innovation of Groww-Factor is the translation of raw web data into a "Factual Mirror."
 
-- **Recursive Mimicry**: Uses high-fidelity browser headers to extract `__NEXT_DATA__` from Groww/AMC portals, bypassing standard scraping blocks.
-- **Factual Translation Engine**: Instead of raw text, the system converts data points into natural language "Fact Sentences":
-  > `{"nav": 221.61}` → *"The latest NAV for HDFC Mid Cap Direct is Rs 221.61."*
-- **Persistent Indexing**: Facts are encoded using `models/gemini-embedding-001`. This model was selected during the **Production Migration Phase** to ensure zero-compilation deployment on Render.
+### Supported Fund Universe (Master Registry)
+The system maintains a strictly-defined knowledge boundary through the following official AMC sources:
 
----
+1.  **HDFC Mid Cap Opportunities Fund**  
+    🔗 [Source](https://groww.in/mutual-funds/hdfc-mid-cap-opportunities-fund-direct-growth)
+2.  **HDFC Flexi Cap Fund**  
+    🔗 [Source](https://groww.in/mutual-funds/hdfc-equity-fund-direct-growth)
+3.  **HDFC Focused 30 Fund**  
+    🔗 [Source](https://groww.in/mutual-funds/hdfc-focused-fund-direct-growth)
+4.  **HDFC ELSS Tax Saver Fund**  
+    🔗 [Source](https://groww.in/mutual-funds/hdfc-elss-tax-saver-fund-direct-plan-growth)
+5.  **HDFC Silver ETF Fund of Fund**  
+    🔗 [Source](https://groww.in/mutual-funds/hdfc-silver-etf-fof-direct-growth)
 
-## 3. Intelligence Module (LangGraph)
-
-The system utilizes a state-machine based routing logic to ensure strict compliance with financial regulations.
-
-| Component | Responsibility |
-| :--- | :--- |
-| **Router** | Identifies if a query is factual (safe) or advisory (blocked). |
-| **PII Guard** | Strips any sensitive user information before processing. |
-| **Vector Retriever** | Uses semantic similarity to find the exact "Digital Mirror" facts. |
-| **Facts-Only Generator** | A strictly-prompted Gemini model that refuses to hallucinate beyond the retrieved fact. |
-
----
-
-## 4. Production Engineering & DevOps
-
-One of the project's key strengths is its stable production architecture:
-
-- **Render Backend**: A FastAPI server configured for high-concurrency processing with `PYTHONUNBUFFERED` logging.
-- **Vercel Frontend**: A Next.js 14 application with a custom, Groww-inspired liquid UI that is fully mobile-responsive.
-- **Automated Sync**: A GitHub Action (`daily_ingest.yml`) triggers every 24 hours to ensure the "Digital Mirror" reflects the latest NAV and AUM changes.
+### Ingestion Logic:
+- **Recursive Mimicry**: The scraper simulates a high-fidelity browser environment to extract `__NEXT_DATA__` JSON blobs.
+- **Natural Language Translation**: Raw data is converted into high-density fact sentences:  
+  *Example:* `{"nav": 221.6}` → *"The confirmed NAV for HDFC Mid Cap is Rs 221.6."*
+- **Batch Embedding**: Chunks are processed in batches of 30 to stay within Google API rate limits while maximizing indexing speed.
 
 ---
 
-## 5. Security & Verification
+## 3. Intelligence & Safety Flow (LangGraph)
 
-- **Admin Ingestion**: Secured via `ADMIN_SECRET_KEY` and HMAC-verified tokens.
-- **Test Suite**: A robust suite in `tests/` covering API endpoints, Generation accuracy, and PII masking, providing proof of system robustness.
+The user's query follows a strict 4-stage processing pipeline to ensure safety and precision:
+
+```mermaid
+graph TD
+    A[User Prompt] --> B[PII Guard]
+    B -->|Scrubbed Query| C[Intent Router]
+    C -->|Factual Query| D[Hybrid Retriever]
+    C -->|Advisory Request| E[Compliance Block]
+    D -->|Context + Citations| F[Gemini Flash Generator]
+    F -->|Verified Output| G[End User]
+```
+
+1.  **PII Guard**: Masks names, emails, and phone numbers to ensure user privacy.
+2.  **Hybrid Retriever**: Combines **Vector Similarity (Semantic)** with **BM25 (Keyword)** search. This ensures that a query for "NAV" (keyword) is just as accurate as a query for "What is the price?" (semantic).
+3.  **Hallucination Shield**: The System Prompt forces the model to cite the specific source URL and refuse to generate data not found in the "Digital Mirror."
+
+---
+
+## 4. Production Performance Tuning
+
+To satisfy **Render's Free Tier (512MB RAM)** constraints, we implemented:
+- **Streaming Chunks**: To prevent memory spikes during ingestion.
+- **Persistent Vector Cache**: Avoiding redundant cloud calls on every restart.
+- **Concurrent API Proxy**: The Next.js frontend uses a local `/api` proxy to handle CORS and improve cross-region latency.
