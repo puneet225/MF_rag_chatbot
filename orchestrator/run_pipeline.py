@@ -101,17 +101,18 @@ def extract_from_json_data(html: str) -> str:
             return None
 
         # ─── MASTER SOURCE MERGE (Robust Deep Search) ───
-        fund_data = props.get("fundData", {})
-        live_data = props.get("mfServerSideData", {})
-        
-        # Pull NAV/AUM from anywhere in the page properties
+        # Use deep_find to hunt for keys anywhere in the page properties
         nav_val = deep_find(props, "nav")
         nav_date = deep_find(props, "nav_date")
         aum_val = deep_find(props, "aum")
         tax_val = deep_find(props, "tax_impact")
+        exit_val = deep_find(props, "exit_load")
+        expense_val = deep_find(props, "expense_ratio")
+        sip_val = deep_find(props, "min_sip_investment")
+        managers = deep_find(props, "fund_manager") or deep_find(props, "fund_managers")
         
         # 1. Identify the Fund Name
-        scheme_name = fund_data.get("scheme_name") or live_data.get("scheme_name") or "the fund"
+        scheme_name = deep_find(props, "scheme_name") or "the fund"
         
         # 2. Build Factual Sentences (The 'Digital Mirror')
         facts = []
@@ -123,30 +124,29 @@ def extract_from_json_data(html: str) -> str:
         if aum_val:
             facts.append(f"The Assets Under Management (AUM) or Fund Size for {scheme_name} is {aum_val} Cr.")
             
-        if "expense_ratio" in fund_data:
-             facts.append(f"The Expense Ratio for {scheme_name} is {fund_data['expense_ratio']}%.")
+        if expense_val:
+             facts.append(f"The Expense Ratio for {scheme_name} is {expense_val}%.")
 
-        if "exit_load" in fund_data:
-             facts.append(f"The Exit Load for {scheme_name} is: {fund_data['exit_load']}.")
+        if exit_val:
+             # Ensure we capture the full exit load string
+             facts.append(f"The Exit Load for {scheme_name} is: {exit_val}.")
 
-        if "min_sip_investment" in fund_data:
-             facts.append(f"The Minimum SIP investment for {scheme_name} is Rs {fund_data['min_sip_investment']}.")
+        if sip_val:
+             facts.append(f"The Minimum SIP investment for {scheme_name} is Rs {sip_val}.")
 
         if tax_val:
             # Strip HTML if present
             clean_tax = re.sub('<[^<]+?>', '', str(tax_val))
             facts.append(f"Taxation and Tax Implications for {scheme_name}: {clean_tax}")
 
-        # Adding Portfolio Highlights
-        stats = fund_data.get("stats", {})
-        if "total_stocks" in stats:
-            facts.append(f"{scheme_name} has a portfolio of {stats['total_stocks']} stocks.")
-
         # Adding Fund Managers
-        managers = fund_data.get("fund_manager")
         if managers:
             if isinstance(managers, list):
-                mgr_names = [m.get("person_name") for m in managers if m.get("person_name")]
+                mgr_names = []
+                for m in managers:
+                    if isinstance(m, dict): 
+                        name = m.get("person_name") or m.get("name")
+                        if name: mgr_names.append(name)
                 if mgr_names:
                     facts.append(f"The Fund Managers for {scheme_name} are {', '.join(mgr_names)}.")
             elif isinstance(managers, str):

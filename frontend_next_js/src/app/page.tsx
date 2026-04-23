@@ -227,10 +227,10 @@ export default function FundFactChat() {
   };
 
   const quickActions = [
-    "What is the latest NAV for HDFC Mid Cap?",
-    "What is the expense ratio for HDFC Mid Cap?",
-    "What are the exit load details for HDFC Flexi Cap?",
-    "Who is the fund manager for HDFC Flexi Cap?"
+    "What is the latest NAV for HDFC Mid Cap Opportunities Fund?",
+    "What is the expense ratio for HDFC Mid Cap Opportunities Fund?",
+    "What are the exit load details for HDFC Flexi Cap Fund?",
+    "Who is the fund manager for HDFC Focused 30 Fund?"
   ];
 
   if (!activeSession) return <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-950">Loading...</div>;
