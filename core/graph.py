@@ -68,7 +68,13 @@ def query_rewriter_node(state: ChatState) -> Dict[str, Any]:
     STANDALONE QUESTION:"""
     
     response = _rewriter_llm.invoke(rewrite_prompt)
-    rewritten = response.content.strip()
+    content = response.content
+    
+    # Handle case where content might be a list
+    if isinstance(content, list):
+        content = " ".join([c['text'] if isinstance(c, dict) and 'text' in c else str(c) for c in content])
+    
+    rewritten = content.strip()
     
     # Clean output in case LLM adds extra text
     rewritten = rewritten.split("\n")[0] 
