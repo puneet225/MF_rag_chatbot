@@ -6,10 +6,11 @@
 
 ## ⚡ The Groww-Factor Advantage
 
-- **Zero-Hallucination Brain**: Uses a "Factual Mirror" ingestion pipeline that translates raw JSON fund metadata into high-density vector records.
-- **Production-Ready Build**: Migrated to Google Cloud Embeddings for zero-compilation stability on Render/Cloud environments.
-- **Privacy First**: Integrated **PII Guard** to mask sensitive user data before processing.
-- **Daily Persistence**: Automated ingestion via GitHub Actions—the chatbot's data is never more than 24 hours old.
+- **Factual Precision (Digital Mirror)**: Uses a custom-built, deep-search scraper that captures 100% of fund metadata (NAV, Managers, Load) directly from AMC JSON blobs.
+- **Production-Ready Build**: Fully migrated to Google Cloud Embeddings to ensure high-speed, zero-compilation stability on Render/Cloud environments.
+- **Premium User Experience**: Features a **"Liquid UI"** built with Next.js 14—fully mobile-responsive with a sleek, dark-mode-first aesthetic inspired by modern fintech apps.
+- **Privacy First**: Integrated **PII Guard** state-machine node to mask sensitive user data (PAN, Aadhaar) before it reaches the LLM.
+- **Automated Sync**: Daily factual updates via GitHub Actions, ensuring the assistant’s data is never more than 24 hours old.
 
 ---
 
