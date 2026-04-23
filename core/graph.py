@@ -31,6 +31,9 @@ from core.pii_guard import detect_pii
 from core.refusal import refusal_node, greeting_node
 from core.generator import retrieval_node, generation_node
 
+# ─── Typing ───────────────────────────────────────────────────────────────────
+from typing import Dict, Any
+
 # ─── LLM for Re-writing ───────────────────────────────────────────────────────
 from langchain_google_genai import ChatGoogleGenerativeAI
 from config.settings import LLM_MODEL, LLM_TEMPERATURE
