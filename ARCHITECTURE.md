@@ -1,29 +1,64 @@
-# System Architecture: The Pinpoint RAG Pipeline 📐
+# 🏗️ Groww-Factor Architecture Deep-Dive
 
-Groww-Factor is built on a **High-Density Synchronous Pipeline** designed to ensure that the AI's "internal truth" is 100% aligned with the latest fund data.
-
-## 1. Unified Ingestion Pipeline (The Orchestrator)
-The Orchestrator is the heart of the "Digital Mirror." It performs three critical steps:
-- **Recursive Scraping**: Uses high-fidelity HTTPX mimicry to extract `__NEXT_DATA__` from official fund URLs.
-- **Master Merge**: Combines pricing (NAV), stats (AUM), and compliance (Tax) folders into a single factual state.
-- **Google Cloud Embedding**: Encodes factual sentences using `models/gemini-embedding-001`. This ensures zero local compilation requirements and high-speed retrieval.
-- **Natural Language Translation**: Translates raw data into pinpoint-accurate sentences:
-  > *"The latest NAV for HDFC Mid Cap is Rs 221.614..."*
-
-## 2. Intent-Aware Retrieval
-Our RAG system doesn't just "search" for keywords; it classifies the user's intent to ensure the most relevant "Golden Facts" are pulled first:
-- **Classifier**: Detects if the query is about NAV, AUM, Taxation, or General Fund Info.
-- **Retriever**: Uses a **ChromaDB** vector store with specialized embeddings to find the exact Natural Language Sentence required.
-
-## 3. The LangGraph Controller
-The conversation flow is managed by a state-aware graph, ensuring every answer is validated before being delivered:
-- **Node A (Retrieve)**: Pulls the "Digital Mirror" facts.
-- **Node B (Generate)**: A strictly minimalist generator that mirrors the source without adding "fluff."
-- **Node C (Validate)**: Ensures the response contains no investment advice and no hallucinations.
-
-## 4. Production Stability
-- **Ephemeral Sync**: On Render, the system utilizes a GitHub Action to trigger a full re-ingestion every 24 hours, ensuring the database is always current.
-- **Frontend Proxy**: Next.js proxies API calls to the Render backend, securing the communication channel.
+Groww-Factor is a high-precision RAG (Retrieval-Augmented Generation) system built to solve the "Hallucination Problem" in financial AI. Instead of relying on fuzzy text chunks, it implements a **Digital Mirror** architecture that translates official JSON data into a dedicated factual vector store.
 
 ---
-*Developed for Milestone 1 by Puneet Mall.*
+
+## 1. System Workflow
+
+```mermaid
+graph TD
+    A[AMC Portals] -->|HTTPX Mimicry| B[Orchestrator]
+    B -->|Recursive Scrape| C[Raw JSON Data]
+    C -->|Natural Language Translation| D[Factual Digital Mirror]
+    D -->|Google Cloud Embeddings| E[(ChromaDB)]
+    
+    U[User Query] -->|Router| F{Intent Analysis}
+    F -->|Factual Query| G[Retriever]
+    F -->|Advisory Request| H[Guardrail Block]
+    
+    G -->|Context| I[Gemini Flash Generator]
+    E -->|High-Density Retrieval| G
+    I -->|Fact-Checked Response| J[Final Output + Citations]
+```
+
+---
+
+## 2. The "Digital Mirror" Ingestion Pipeline
+
+The Orchestrator is the heart of the system, designed for zero-latency factual alignment.
+
+- **Recursive Mimicry**: Uses high-fidelity browser headers to extract `__NEXT_DATA__` from Groww/AMC portals, bypassing standard scraping blocks.
+- **Factual Translation Engine**: Instead of raw text, the system converts data points into natural language "Fact Sentences":
+  > `{"nav": 221.61}` → *"The latest NAV for HDFC Mid Cap Direct is Rs 221.61."*
+- **Persistent Indexing**: Facts are encoded using `models/gemini-embedding-001`. This model was selected during the **Production Migration Phase** to ensure zero-compilation deployment on Render.
+
+---
+
+## 3. Intelligence Module (LangGraph)
+
+The system utilizes a state-machine based routing logic to ensure strict compliance with financial regulations.
+
+| Component | Responsibility |
+| :--- | :--- |
+| **Router** | Identifies if a query is factual (safe) or advisory (blocked). |
+| **PII Guard** | Strips any sensitive user information before processing. |
+| **Vector Retriever** | Uses semantic similarity to find the exact "Digital Mirror" facts. |
+| **Facts-Only Generator** | A strictly-prompted Gemini model that refuses to hallucinate beyond the retrieved fact. |
+
+---
+
+## 4. Production Engineering & DevOps
+
+One of the project's key strengths is its stable production architecture:
+
+- **Render Backend**: A FastAPI server configured for high-concurrency processing with `PYTHONUNBUFFERED` logging.
+- **Vercel Frontend**: A Next.js 14 application with a custom, Groww-inspired liquid UI that is fully mobile-responsive.
+- **Automated Sync**: A GitHub Action (`daily_ingest.yml`) triggers every 24 hours to ensure the "Digital Mirror" reflects the latest NAV and AUM changes.
+
+---
+
+## 5. Security & Verification
+
+- **Admin Ingestion**: Secured via `ADMIN_SECRET_KEY` and HMAC-verified tokens.
+- **Test Suite**: A robust suite in `tests/` covering API endpoints, Generation accuracy, and PII masking, providing proof of system robustness.

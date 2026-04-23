@@ -108,6 +108,7 @@ export default function FundFactChat() {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   
   const { theme, setTheme } = useTheme();
@@ -132,6 +133,7 @@ export default function FundFactChat() {
       [newId]: { messages: [], title: `Chat ${chatNum}` }
     }));
     setActiveSessionId(newId);
+    setIsSidebarOpen(false); // Close sidebar on mobile after creation
   };
 
   const activeSession = sessions[activeSessionId];
@@ -237,12 +239,29 @@ export default function FundFactChat() {
     <div className="flex h-screen bg-white dark:bg-[#05070a] text-gray-900 dark:text-gray-100 transition-colors duration-200 relative overflow-hidden">
       <StarsBackground />
       
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-80 bg-gray-50/60 dark:bg-[#0a0c10]/60 border-r border-gray-200/50 dark:border-gray-800/50 flex flex-col transition-colors duration-200 backdrop-blur-xl z-10">
+      <div className={`
+        fixed lg:relative inset-y-0 left-0 w-72 lg:w-80 bg-gray-50 dark:bg-[#0a0c10] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 transform z-50
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+       shadow-2xl lg:shadow-none`}>
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <GrowwFactorLogo />
-            <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent tracking-tight">groww-factor</h1>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <GrowwFactorLogo />
+              <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent tracking-tight">groww-factor</h1>
+            </div>
+            {/* Mobile Close Button */}
+            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-md">
+               <Plus className="rotate-45" size={20} />
+            </button>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium">
             Factual intelligence for HDFC Mutual Fund analysis.
@@ -313,10 +332,23 @@ export default function FundFactChat() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-transparent relative z-10">
+      <div className="flex-1 flex flex-col bg-transparent relative z-10 w-full">
         {/* Header */}
-        <header className="h-16 border-b border-gray-100/50 dark:border-gray-800/30 flex items-center justify-between px-8 bg-white/40 dark:bg-[#05070a]/40 backdrop-blur-xl sticky top-0 z-20 transition-colors duration-200">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{activeSession.title}</h2>
+        <header className="h-16 border-b border-gray-100/50 dark:border-gray-800/30 flex items-center justify-between px-4 lg:px-8 bg-white/40 dark:bg-[#05070a]/40 backdrop-blur-xl sticky top-0 z-20 transition-colors duration-200">
+          <div className="flex items-center gap-3">
+             {/* Mobile Menu Button */}
+             <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="lg:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+             >
+                <div className="flex flex-col gap-1 w-5">
+                   <span className="h-0.5 w-full bg-current rounded-full"></span>
+                   <span className="h-0.5 w-full bg-current rounded-full"></span>
+                   <span className="h-0.5 w-full bg-current rounded-full"></span>
+                </div>
+             </button>
+             <h2 className="text-sm lg:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">{activeSession.title}</h2>
+          </div>
           <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 rounded-full border border-gray-200 dark:border-gray-800">
              <span className="w-2 h-2 rounded-full bg-groww animate-pulse"></span>
              Facts Verified
@@ -324,7 +356,7 @@ export default function FundFactChat() {
         </header>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
           <div className="max-w-3xl mx-auto space-y-6">
             
             {/* Empty State / Suggested Prompts */}
@@ -366,7 +398,7 @@ export default function FundFactChat() {
                   {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                 </div>
                 
-                <div className={`max-w-[85%] rounded-2xl px-5 py-4 text-[15px] leading-relaxed shadow-sm ${
+                <div className={`max-w-[90%] lg:max-w-[85%] rounded-2xl px-4 py-3 lg:px-5 lg:py-4 text-[14px] lg:text-[15px] leading-relaxed shadow-sm ${
                   msg.role === 'user' 
                     ? 'bg-gray-100 dark:bg-gray-800 border border-transparent text-gray-800 dark:text-gray-100' 
                     : msg.isError 
@@ -405,7 +437,7 @@ export default function FundFactChat() {
         </div>
 
         {/* Input Area */}
-        <div className="p-6 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800/80 transition-colors duration-200">
+        <div className="p-4 lg:p-6 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800/80 transition-colors duration-200">
           <div className="max-w-3xl mx-auto relative group">
             <textarea
               value={inputMessage}

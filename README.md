@@ -1,57 +1,78 @@
-# Groww-Factor: Pinpoint Precision RAG for HDFC Mutual Funds 📈
+# 🌊 Groww-Factor: High-Precision Mutual Fund RAG
 
-**Groww-Factor** is a high-density Retrieval-Augmented Generation (RAG) assistant designed for 100% factual accuracy in mutual fund data analysis. It acts as a **"Digital Mirror"** of the official AMC fund pages, serving real-time NAV, AUM, and Tax implications without the marketing noise.
+**Groww-Factor** is a production-grade AI assistant focused on the HDFC Mutual Fund universe. It solves the critical "Financial Hallucination" problem by using a **Digital Mirror** architecture—ensuring every piece of data reported (NAV, Exit Load, AUM) is 100% verified against official AMC records.
 
-## 🏆 Key Features
+---
 
-- **Digital Mirror Precision**: Translates complex JSON fund data into natural language facts, ensuring every answer is explicitly tethered to the latest official source.
-- **Master Merge Ingestion**: Harmonizes disparate data sources (Pricing, Fund Stats, Taxation) into single, high-density factual records.
-- **Zero-Noise Retrieval**: Implements a recursive deep-purge of marketing boilerplate and historical data, eliminating date-based hallucinations.
-- **Production Guardrails**: Strictly minimalist responses—users get exactly the fact they requested, ensuring professional-grade financial transparency.
+## ⚡ The Groww-Factor Advantage
 
-## 🚀 Quick Start (Local Development)
+- **Zero-Hallucination Brain**: Uses a "Factual Mirror" ingestion pipeline that translates raw JSON fund metadata into high-density vector records.
+- **Production-Ready Build**: Migrated to Google Cloud Embeddings for zero-compilation stability on Render/Cloud environments.
+- **Privacy First**: Integrated **PII Guard** to mask sensitive user data before processing.
+- **Daily Persistence**: Automated ingestion via GitHub Actions—the chatbot's data is never more than 24 hours old.
 
-### 1. Prerequisites
-- Python 3.10+
-- Node.js (for frontend)
-- [Gemini API Key](https://aistudio.google.com/app/apikey)
+---
 
-### 2. Backend Setup
+## 🚀 System Architecture
+
+```mermaid
+graph LR
+    A[Official AMC Sources] -->|Digital Mirror| B[Factual Retrieval Engine]
+    B -->|Verified Facts| C[LangGraph Orchestrator]
+    C -->|Strict Rules| D[Gemini LLM]
+    D -->|Citied Output| E[User]
+```
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Backend** | Python 3.11+, FastAPI, LangChain, LangGraph |
+| **Frontend** | Next.js 14, TailwindCSS, Lucide Icons |
+| **Database** | ChromaDB (Vector Store) |
+| **Foundation** | Gemini Flash (LLM), Google Generative AI (Embeddings) |
+| **CI/CD** | GitHub Actions, Render, Vercel |
+
+---
+
+## 🏗️ Getting Started
+
+### 1. Environment Configuration
+Create a `.env` file in the root:
+```env
+GOOGLE_API_KEY=your_key
+ADMIN_SECRET_KEY=secret
+INGEST_TOKEN=secret
+PORT=8010
+```
+
+### 2. Backend Launch (Local)
 ```bash
-git clone https://github.com/puneet225/Milestone_1.git
-cd Milestone_1
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-# Add GOOGLE_API_KEY and ADMIN_SECRET_KEY to .env
 python3 main.py
 ```
 
-### 3. Frontend Setup
+### 3. Frontend Launch (Local)
 ```bash
-cd frontend_next_js
-npm install
-npm run dev
+cd frontend_next_js && npm run dev
 ```
 
-## 🏗️ Architecture
+---
 
-Groww-Factor uses a **Unified Ingestion Pipeline** (Orchestrator) to fetch and "Mirror" fund details. It utilizes:
-- **Google Cloud Embeddings**: (`models/gemini-embedding-001`) for high-speed, zero-compilation factual indexing.
-- **LangGraph Controller**: To process user intent and ensure "Digital Mirror" factual alignment.
-- **ChromaDB**: For pinpoint-accurate document retrieval.
-
-## 🌐 Production Deployment
-
-### Render (Backend) Setup
-For a successful deployment on Render, add the following Environment Variables:
-- `GOOGLE_API_KEY`: Your Google AI Gemini key.
-- `ADMIN_SECRET_KEY`: Security token for ingestion (e.g., `secret`).
-- `INGEST_TOKEN`: Token for automated sync.
-- `PORT`: **`8010`** (Matches internal app routing).
-
-### Vercel (Frontend) Setup
-- `NEXT_PUBLIC_API_URL`: Your live Render URL (e.g., `https://groww-factor.onrender.com`).
+## 🧪 Robustness & Quality
+Groww-Factor is backed by a professional test suite that verifies:
+- ✅ **Factual Accuracy**: Tests against the real-time retrieved facts.
+- ✅ **Advisory Blocking**: Ensures the LLM refuses to give financial advice.
+- ✅ **PII Masking**: Verifies emails and names are never sent to the LLM.
+- ✅ **API Health**: Full coverage for FastAPI endpoints.
 
 ---
-*Disclaimer: Groww-Factor provides data sourced from AMC portals. It is a factual assistant and does not provide investment advisory services.*
+
+## 📄 Documentation
+- [**Architecture Deep-Dive**](./ARCHITECTURE.md)
+- [**API Documentation**](./API_DOCUMENTATION.md)
+- [**Testing Guide**](./Docs/testing_guide.md)
+
+---
+*Disclaimer: Groww-Factor is a factual data retrieval assistant. It does not provide investment advisory services or financial planning.*
