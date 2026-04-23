@@ -56,7 +56,7 @@ def _get_allowlisted_urls() -> set:
     return _ALLOWLISTED_URLS
 
 
-# ─── Generation Prompt ────────────────────────────────────────────────────────
+_GENERATION_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a high-fidelity 'Factual Mirror' for HDFC Mutual Fund data.
 
 YOUR MISSION:
