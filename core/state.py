@@ -55,5 +55,6 @@ class ChatState(TypedDict):
     intent: str
     retrieved_docs: List[dict]
     identified_scheme: str
+    rewritten_query: str
     response: str
     citation: str

@@ -31,13 +31,47 @@ from core.pii_guard import detect_pii
 from core.refusal import refusal_node, greeting_node
 from core.generator import retrieval_node, generation_node
 
-# ─── Typing ───────────────────────────────────────────────────────────────────
-from typing import Dict, Any
+# ─── LLM for Re-writing ───────────────────────────────────────────────────────
+from langchain_google_genai import ChatGoogleGenerativeAI
+from config.settings import LLM_MODEL, LLM_TEMPERATURE
+_rewriter_llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0.0)
 
+# ─── NODES ────────────────────────────────────────────────────────────────────
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Safety Guard Node (uses core.pii_guard for detection)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def query_rewriter_node(state: ChatState) -> Dict[str, Any]:
+    """
+    Contextualize the user's latest query using previous messages.
+    Converts 'the same' or 'it' into the actual fund name.
+    """
+    messages = state.get("messages", [])
+    if len(messages) <= 1:
+        # First message or only one message, nothing to rewrite
+        return {"rewritten_query": messages[-1].content}
+
+    # Use the LLM to generate a standalone query
+    history_str = "\n".join([f"{m.type}: {m.content}" for m in messages[:-1]])
+    latest_query = messages[-1].content
+
+    rewrite_prompt = f"""Given the following conversation history and the latest user question, 
+    re-write the question to be a standalone factual query that mentions the specific fund name.
+    If the question is already specific, return it as is.
+    
+    HISTORY:
+    {history_str}
+    
+    LATEST QUESTION:
+    {latest_query}
+    
+    STANDALONE QUESTION:"""
+    
+    response = _rewriter_llm.invoke(rewrite_prompt)
+    rewritten = response.content.strip()
+    
+    # Clean output in case LLM adds extra text
+    rewritten = rewritten.split("\n")[0] 
+    
+    return {"rewritten_query": rewritten}
+
 
 def safety_guard_node(state: ChatState) -> Dict[str, Any]:
     """
@@ -86,7 +120,7 @@ def route_after_safety(state: ChatState) -> str:
         return "greeting"
     if intent == "advisory":
         return "refusal"
-    return "retrieval"
+    return "query_rewriter"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -98,6 +132,7 @@ def create_graph():
     Build and compile the LangGraph state machine.
 
     Nodes:
+      0. query_rewriter   — Resolves context/pronouns
       1. classify_intent  — core/intent_classifier.py
       2. safety_guard     — this file (uses core/pii_guard.py)
       3. greeting         — core/refusal.py
@@ -110,6 +145,7 @@ def create_graph():
     # Register nodes
     workflow.add_node("classify_intent", classify_intent_node)
     workflow.add_node("safety_guard", safety_guard_node)
+    workflow.add_node("query_rewriter", query_rewriter_node)
     workflow.add_node("greeting", greeting_node)
     workflow.add_node("refusal", refusal_node)
     workflow.add_node("retrieval", retrieval_node)
@@ -127,11 +163,12 @@ def create_graph():
             END: END,
             "greeting": "greeting",
             "refusal": "refusal",
-            "retrieval": "retrieval",
+            "query_rewriter": "query_rewriter",
         },
     )
 
-    # Terminal edges
+    # Context flow
+    workflow.add_edge("query_rewriter", "retrieval")
     workflow.add_edge("retrieval", "generation")
     workflow.add_edge("generation", END)
     workflow.add_edge("greeting", END)

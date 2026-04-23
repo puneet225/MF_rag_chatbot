@@ -149,15 +149,16 @@ def retrieval_node(state: ChatState) -> Dict[str, Any]:
     """
     LangGraph node: Retrieve relevant chunks from the vector store.
 
-    Reads:  state["messages"][-1].content
+    Reads:  state["rewritten_query"] (fallbacks to messages if missing)
     Writes: state["retrieved_docs"], state["citation"]
     """
     from core.retriever import get_retriever
 
-    last_message = state["messages"][-1].content
+    query = state.get("rewritten_query") or state["messages"][-1].content
     retriever = get_retriever()
 
-    docs = retriever.invoke(last_message)
+    logger.info(f"Retrieving docs for: {query}")
+    docs = retriever.invoke(query)
 
     citation = ""
     if docs:
