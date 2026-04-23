@@ -18,7 +18,7 @@ graph TD
     classDef ui fill:#8e24aa,stroke:#fff,stroke-width:2px,color:#fff;
 
     %% --- PHASE 1 to 4: OFFLINE DATA PIPELINE ---
-    subgraph DataIngestionPipeline [Daily "Digital Mirror" Pipeline]
+    subgraph DataIngestionPipeline [Daily Digital Mirror Pipeline]
         Trigger([Cron Scheduler]):::trigger -->|1. Triggers every 24h| Registry
         
         Registry["Phase 1: URL Registry Sync"]:::phase 
