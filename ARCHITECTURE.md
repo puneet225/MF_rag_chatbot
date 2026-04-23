@@ -6,6 +6,7 @@ Groww-Factor is built on a **High-Density Synchronous Pipeline** designed to ens
 The Orchestrator is the heart of the "Digital Mirror." It performs three critical steps:
 - **Recursive Scraping**: Uses high-fidelity HTTPX mimicry to extract `__NEXT_DATA__` from official fund URLs.
 - **Master Merge**: Combines pricing (NAV), stats (AUM), and compliance (Tax) folders into a single factual state.
+- **Google Cloud Embedding**: Encodes factual sentences using `models/gemini-embedding-001`. This ensures zero local compilation requirements and high-speed retrieval.
 - **Natural Language Translation**: Translates raw data into pinpoint-accurate sentences:
   > *"The latest NAV for HDFC Mid Cap is Rs 221.614..."*
 

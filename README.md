@@ -36,12 +36,22 @@ npm run dev
 
 ## 🏗️ Architecture
 
-Groww-Factor uses a **Unified Ingestion Pipeline** (Orchestrator) to fetch and "Mirror" fund details from official portals. It then utilizes **LangGraph** to process user intent and a **ChromaDB** vector store for pinpoint-accurate document retrieval.
+Groww-Factor uses a **Unified Ingestion Pipeline** (Orchestrator) to fetch and "Mirror" fund details. It utilizes:
+- **Google Cloud Embeddings**: (`models/gemini-embedding-001`) for high-speed, zero-compilation factual indexing.
+- **LangGraph Controller**: To process user intent and ensure "Digital Mirror" factual alignment.
+- **ChromaDB**: For pinpoint-accurate document retrieval.
 
 ## 🌐 Production Deployment
 
-- **Backend**: Hosted on Render (with automated daily data refresh via GitHub Actions).
-- **Frontend**: Hosted on Vercel (proxied to the Render API).
+### Render (Backend) Setup
+For a successful deployment on Render, add the following Environment Variables:
+- `GOOGLE_API_KEY`: Your Google AI Gemini key.
+- `ADMIN_SECRET_KEY`: Security token for ingestion (e.g., `secret`).
+- `INGEST_TOKEN`: Token for automated sync.
+- `PORT`: **`8010`** (Matches internal app routing).
+
+### Vercel (Frontend) Setup
+- `NEXT_PUBLIC_API_URL`: Your live Render URL (e.g., `https://groww-factor.onrender.com`).
 
 ---
 *Disclaimer: Groww-Factor provides data sourced from AMC portals. It is a factual assistant and does not provide investment advisory services.*
