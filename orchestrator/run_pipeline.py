@@ -310,8 +310,19 @@ def chunk_and_index(docs: List[Document]):
     invalidate_retriever_cache()
     return len(chunks)
 
+import threading
+
+# GLOBAL LOCK: Ensures only one ingestion can run at a time to prevent 
+# SQLite 'database is locked' or 'readonly' errors.
+_ingestion_lock = threading.Lock()
+
 def run_ingestion(force: bool = False) -> Dict[str, Any]:
-    run_id = str(uuid.uuid4())[:8]
+    if not _ingestion_lock.acquire(blocking=False):
+        logger.warning("Another ingestion is already in progress. Skipping this run.")
+        return {"status": "skipped", "message": "Another ingestion active"}
+
+    try:
+        run_id = str(uuid.uuid4())[:8]
     logger.info(f"--- STARTING RUN {run_id} ---")
     stats = {"run_id": run_id, "chunks_indexed": 0, "status": "started"}
     
@@ -345,6 +356,8 @@ def run_ingestion(force: bool = False) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Indexing failed: {e}")
         stats["status"] = f"failed: {str(e)}"
+    finally:
+        _ingestion_lock.release()
         
     update_last_refreshed()
     logger.info(f"--- RUN {run_id} COMPLETE ---")
