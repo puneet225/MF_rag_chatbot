@@ -32,9 +32,18 @@ def get_vector_store() -> Union[Chroma, Qdrant]:
         )
     
     # Default to Chroma
-    logger.info(f"Using local ChromaDB at {CHROMA_PERSIST_DIR}")
-    return Chroma(
-        persist_directory=CHROMA_PERSIST_DIR,
-        embedding_function=embeddings,
-        collection_name=CHROMA_COLLECTION_NAME,
-    )
+    is_production = os.getenv("RENDER") or os.getenv("VERCEL")
+    
+    if is_production:
+        logger.info("🌊 Production Detected: Initializing IN-MEMORY High-Availability Store.")
+        return Chroma(
+            embedding_function=embeddings,
+            collection_name=CHROMA_COLLECTION_NAME
+        )
+    else:
+        logger.info(f"📁 Desktop Detected: Initializing DISK-PERSISTENT Store at {CHROMA_PERSIST_DIR}")
+        return Chroma(
+            persist_directory=CHROMA_PERSIST_DIR,
+            embedding_function=embeddings,
+            collection_name=CHROMA_COLLECTION_NAME,
+        )
