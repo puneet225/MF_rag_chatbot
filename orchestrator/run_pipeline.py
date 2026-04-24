@@ -321,38 +321,39 @@ def run_ingestion(force: bool = False) -> Dict[str, Any]:
         logger.warning("Another ingestion is already in progress. Skipping this run.")
         return {"status": "skipped", "message": "Another ingestion active"}
 
-    try:
-        run_id = str(uuid.uuid4())[:8]
-    logger.info(f"--- STARTING RUN {run_id} ---")
+    run_id = str(uuid.uuid4())[:8]
     stats = {"run_id": run_id, "chunks_indexed": 0, "status": "started"}
     
-    if not GOOGLE_API_KEY:
-        logger.error("API Key missing")
-        stats["status"] = "failed: api_key_missing"
-        return stats
-        
-    registry = load_url_registry()
-    raw_docs, failures = fetch_urls(registry)
-    if not raw_docs:
-        logger.error("No docs successfully fetched.")
-        stats["status"] = "failed: fetch_error"
-        return stats
-        
-    norm_docs = normalise_documents(raw_docs)
-    quality_docs, rejections = validate_content_quality(norm_docs)
-    changed_docs, skipped = filter_unchanged_documents(quality_docs, force)
-    
-    if not changed_docs:
-        logger.info("No data updates required.")
-        update_last_refreshed()
-        stats["status"] = "success: no_updates"
-        return stats
-        
     try:
+        logger.info(f"--- STARTING RUN {run_id} ---")
+        
+        if not GOOGLE_API_KEY:
+            logger.error("API Key missing")
+            stats["status"] = "failed: api_key_missing"
+            return stats
+            
+        registry = load_url_registry()
+        raw_docs, failures = fetch_urls(registry)
+        if not raw_docs:
+            logger.error("No docs successfully fetched.")
+            stats["status"] = "failed: fetch_error"
+            return stats
+            
+        norm_docs = normalise_documents(raw_docs)
+        quality_docs, rejections = validate_content_quality(norm_docs)
+        changed_docs, skipped = filter_unchanged_documents(quality_docs, force)
+        
+        if not changed_docs:
+            logger.info("No data updates required.")
+            update_last_refreshed()
+            stats["status"] = "success: no_updates"
+            return stats
+            
         chunk_count = chunk_and_index(changed_docs)
         logger.info(f"Indexed {chunk_count} chunks.")
         stats["chunks_indexed"] = chunk_count
         stats["status"] = "success"
+        
     except Exception as e:
         logger.error(f"Indexing failed: {e}")
         stats["status"] = f"failed: {str(e)}"
