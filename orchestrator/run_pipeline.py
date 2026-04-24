@@ -283,6 +283,17 @@ def chunk_and_index(docs: List[Document]):
     chunks = splitter.split_documents(docs)
     vector_store = get_vector_store()
     
+    # CLEAN MIRROR RULE: To prevent stale data (like seeing the 22nd when it's the 23rd),
+    # we must remove existing documents for the funds we are updating.
+    for doc in docs:
+        sid = doc.metadata.get("scheme_id")
+        if sid:
+            try:
+                logger.debug(f"  Clearing old mirror data for {sid}...")
+                vector_store.delete(where={"scheme_id": sid})
+            except Exception as e:
+                logger.warning(f"  Could not clear old data for {sid}: {e}")
+
     # BATCHING: Process chunks in batches of 30 
     batch_size = 30
     logger.info(f"Indexing {len(chunks)} chunks in batches of {batch_size}...")
