@@ -168,6 +168,24 @@ async def trigger_ingestion(token: str = None):
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
+import asyncio
+
+async def continuous_sync_task():
+    """
+    Background loop that keeps the system updated every 24 hours
+    without needing manual intervention.
+    """
+    while True:
+        # Sleep for 24 hours (86400 seconds)
+        await asyncio.sleep(86400)
+        logger.info("🕒 Scheduled 24-hour sync starting...")
+        try:
+            from orchestrator.run_pipeline import run_ingestion
+            run_ingestion()
+            logger.info("✅ Scheduled sync complete.")
+        except Exception as e:
+            logger.error(f"❌ Scheduled sync failed: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     """
@@ -185,11 +203,15 @@ async def startup_event():
         
         if count == 0:
             logger.warning("Vector store is EMPTY. Triggering emergency hydration...")
-            from orchestrator.run_pipeline import run_ingestion_pipeline
-            run_ingestion_pipeline()
+            from orchestrator.run_pipeline import run_ingestion
+            run_ingestion()
             logger.info("Auto-Hydration complete.")
     except Exception as e:
         logger.error(f"Auto-Hydration check failed: {e}")
+
+    # Start the continuous background sync
+    asyncio.create_task(continuous_sync_task())
+    logger.info("Continuous Sync background task started (24h interval).")
 
 if __name__ == "__main__":
     import uvicorn
