@@ -168,6 +168,29 @@ async def trigger_ingestion(token: str = None):
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
+@app.on_event("startup")
+async def startup_event():
+    """
+    Ensure the vector store is 'hydrated' at boot. 
+    On ephemeral cloud providers (Render free tier), the local DB is wiped 
+    on restart. This check ensures we have data to answer questions.
+    """
+    logger.info("Performing Auto-Hydration check...")
+    from core.vector_store import get_vector_store
+    
+    try:
+        vs = get_vector_store()
+        count = vs._collection.count()
+        logger.info(f"Current Vector Store count: {count} documents.")
+        
+        if count == 0:
+            logger.warning("Vector store is EMPTY. Triggering emergency hydration...")
+            from orchestrator.run_pipeline import run_ingestion_pipeline
+            run_ingestion_pipeline()
+            logger.info("Auto-Hydration complete.")
+    except Exception as e:
+        logger.error(f"Auto-Hydration check failed: {e}")
+
 if __name__ == "__main__":
     import uvicorn
 
