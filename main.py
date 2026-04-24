@@ -189,29 +189,45 @@ async def continuous_sync_task():
 @app.on_event("startup")
 async def startup_event():
     """
-    Ensure the vector store is 'hydrated' at boot. 
-    On ephemeral cloud providers (Render free tier), the local DB is wiped 
-    on restart. This check ensures we have data to answer questions.
+    STABILITY PROTOCOL: Ensure vector store is healthy and hydrated.
+    If corrupted (common on Render reboots), we wipe and rebuild.
     """
-    logger.info("Performing Auto-Hydration check...")
+    logger.info("🛠️ Running Stability Handshake...")
     from core.vector_store import get_vector_store
+    import shutil
+    from pathlib import Path
+    
+    db_path = Path("./chroma_db")
     
     try:
+        # 1. Attempt to connect and check health
         vs = get_vector_store()
         count = vs._collection.count()
-        logger.info(f"Current Vector Store count: {count} documents.")
+        logger.info(f"💾 Database identified: {count} documents.")
         
+        # 2. If empty, trigger hydration
         if count == 0:
-            logger.warning("Vector store is EMPTY. Triggering emergency hydration...")
-            from orchestrator.run_pipeline import run_ingestion
-            run_ingestion()
-            logger.info("Auto-Hydration complete.")
+            raise ValueError("Empty database detected.")
+            
     except Exception as e:
-        logger.error(f"Auto-Hydration check failed: {e}")
+        logger.warning(f"⚠️ Stability Check Failed: {e}")
+        logger.info("🔄 RECOVERY: Wiping and Re-hydrating Fact Base...")
+        
+        # 3. Wipe and Rebuild (The 'Nuke' Option for stability)
+        if db_path.exists():
+            shutil.rmtree(db_path)
+        
+        try:
+            from orchestrator.run_pipeline import run_ingestion
+            run_ingestion(force=True)
+            logger.info("🚀 Recovery complete. Fact Base is live.")
+        except Exception as ingest_error:
+            logger.error(f"❌ CRITICAL: Recovery failed: {ingest_error}")
 
-    # Start the continuous background sync
+    # Start the continuous background sync (24h loop)
+    import asyncio
     asyncio.create_task(continuous_sync_task())
-    logger.info("Continuous Sync background task started (24h interval).")
+    logger.info("✅ System is online and self-healing.")
 
 if __name__ == "__main__":
     import uvicorn
