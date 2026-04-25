@@ -62,25 +62,30 @@ _GENERATION_PROMPT = ChatPromptTemplate.from_messages([
 YOUR MISSION:
 Locate the specific numeric or factual detail requested by the user within the PROVIDED CONTEXT. 
 
-GUIDELINES:
-- Report the specific fact (NAV, AUM, Expense Ratio, Fund Manager, etc.) clearly and exactly as stated in the context.
-- Keep the response brief (1-2 sentences). 
-- If the context contains 'Digital Mirror' sentences, use those as your primary source of truth.
-- Do NOT provide financial advice, plans, or comparisons.
-- Only say "Not found in indexed sources" if the context truly does not contain any relevant information for the specific scheme requested.
+STRICT RULES:
+1. **ENTITY CONTINUITY**: You MUST answer for the fund discussed in the 'HISTORY' or explicitly named in the 'QUERY'. If retrieved context belongs to a DIFFERENT fund name, IGNORE it.
+2. **DO NOT MIX FACTS**: Never attribute facts (like SIP or Manager) from one fund to another.
+3. **BRIVITY**: Keep the response brief (1-2 sentences). 
+4. **NO ADVICE**: Do NOT provide financial advice or comparisons.
 
 CONTEXT:
-{context}"""),
+{context}
+
+HISTORY:
+{history}"""),
     ("human", "{query}")
 ])
 
 _STRICT_RETRY_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are a factual assistant. Answer in EXACTLY {max_sentences} sentences or fewer.
-Use ONLY the facts below. Do NOT give advice. Do NOT compare funds.
+Use ONLY the facts for the fund discussed in the history. Do NOT mix data from different funds.
 If unsure, say "I could not find this in the indexed sources."
 
-FACTS:
-{context}"""),
+CONTEXT:
+{context}
+
+HISTORY:
+{history}"""),
     ("human", "{query}")
 ])
 
@@ -230,11 +235,15 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
 
     # Build context from retrieved chunks
     context = "\n\n".join(doc["page_content"] for doc in docs)
+    
+    # Format history string for the prompt
+    history_str = "\n".join([f"{m.type}: {m.content}" for m in recent_messages[:-1]])
 
     # ── Attempt 1: Standard generation ──
     chain = _GENERATION_PROMPT | _llm
     result = chain.invoke({
         "context": context,
+        "history": history_str,
         "query": last_message,
         "max_sentences": MAX_RESPONSE_SENTENCES,
     })
@@ -258,6 +267,7 @@ def generation_node(state: ChatState) -> Dict[str, Any]:
         retry_chain = _STRICT_RETRY_PROMPT | _llm
         retry_result = retry_chain.invoke({
             "context": context,
+            "history": history_str,
             "query": last_message,
             "max_sentences": MAX_RESPONSE_SENTENCES,
         })
