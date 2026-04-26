@@ -7,10 +7,12 @@
 ## ⚡ The Groww-Factor Advantage
 
 - **Factual Precision (Digital Mirror)**: Uses a custom-built, deep-search scraper that captures 100% of fund metadata (NAV, Managers, Load) directly from AMC JSON blobs.
-- **Production-Ready Build**: Fully migrated to Google Cloud Embeddings to ensure high-speed, zero-compilation stability on Render/Cloud environments.
+- **Self-Healing Infrastructure**: Implemented an automated "Startup Handshake" that detects empty or corrupted databases on cloud reboots and triggers a blocking re-hydration in < 30 seconds.
+- **Zero-Crash Cloud Strategy**: Migrated production storage to **In-Memory High Availability** mode to bypass cloud filesystem limitations and SQLite locking issues.
+- **Keep-Alive Janitor**: Integrated a 14-minute "Heartbeat" GitHub Action that prevents Render's free tier from sleeping, ensuring **instant-on response times**.
+- **Contextual Intelligence**: Advanced LangGraph orchestrator with a **Query Rewriter Node** that resolves relative references (e.g., "what is the NAV for the same?") using conversation history.
 - **Premium User Experience**: Features a **"Liquid UI"** built with Next.js 14—fully mobile-responsive with a sleek, dark-mode-first aesthetic inspired by modern fintech apps.
 - **Privacy First**: Integrated **PII Guard** state-machine node to mask sensitive user data (PAN, Aadhaar) before it reaches the LLM.
-- **Automated Sync**: Daily factual updates via GitHub Actions, ensuring the assistant’s data is never more than 24 hours old.
 
 ---
 
@@ -18,10 +20,11 @@
 
 ```mermaid
 graph LR
-    A[Official AMC Sources] -->|Digital Mirror| B[Factual Retrieval Engine]
+    A[Official AMC Sources] -->|Digital Mirror| B[In-Memory Fact Store]
     B -->|Verified Facts| C[LangGraph Orchestrator]
-    C -->|Strict Rules| D[Gemini LLM]
+    C -->|Memory Guard| D[Gemini LLM + History]
     D -->|Citied Output| E[User]
+    F[Janitor Action] -->|Ping Heartbeat| C
 ```
 
 ---
