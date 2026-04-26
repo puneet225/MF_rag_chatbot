@@ -166,6 +166,11 @@ async def trigger_ingestion(token: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/health")
+async def health_check():
+    """Lightweight endpoint for keep-alive pings."""
+    return {"status": "alive", "timestamp": datetime.datetime.now().isoformat()}
+
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
 import asyncio
