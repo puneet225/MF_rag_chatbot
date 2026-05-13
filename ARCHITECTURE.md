@@ -120,42 +120,135 @@ graph LR
 
 ---
 
-## Phase 3: Factual Translation & Chunking
-Converting raw JSON into a "Digital Mirror" that the LLM can easily navigate.
+## Phase 3: Factual Translation & Chunking Strategy
+Converting raw JSON into a "Digital Mirror" that the LLM can easily navigate — the most critical phase for retrieval quality.
 
 ### 3.1 Objective
-Translate complex JSON objects into human-readable, high-density factual sentences that keep the AI "grounded" in reality.
+Translate complex JSON objects into human-readable, high-density factual sentences that keep the AI "grounded" in reality. Then split them into optimally-sized chunks that preserve semantic completeness per fund.
 
-### 3.2 Strategy
-- **Text Splitter**: LangChain's `RecursiveCharacterTextSplitter`.
-- **Chunk Size**: 1000 characters (ensures full fund stats are never split).
-- **Metadata**: Every chunk is hardcoded with `{"source": "groww.in/url", "type": "official_amc_data"}`.
+### 3.2 Factual Translation (JSON → Natural Language)
+Before any chunking happens, raw `__NEXT_DATA__` JSON blobs are converted into structured natural language sentences using a **template-driven translation** pattern. This is the core of the "Digital Mirror" — it transforms machine-readable JSON into LLM-navigable facts.
+
+```mermaid
+graph LR
+    A["Raw __NEXT_DATA__\nJSON Blob"] --> B["deep_find()\nRecursive Key Extraction"]
+    B --> C["Template Engine\n(Key → Sentence)"]
+    C --> D["High-Density\nFact Block"]
+    
+    style A fill:#1976d2,color:#fff
+    style B fill:#f57c00,color:#fff
+    style C fill:#388e3c,color:#fff
+    style D fill:#8e24aa,color:#fff
+```
+
+**Example Translation:**
+| JSON Key | Raw Value | Translated Sentence |
+| :--- | :--- | :--- |
+| `nav` | `62.4519` | "The latest Net Asset Value (NAV) for HDFC Mid-Cap Opportunities Fund is 62.4519 as of 2024-03-15." |
+| `expense_ratio` | `0.74` | "The Expense Ratio for HDFC Mid-Cap Opportunities Fund is 0.74%." |
+| `exit_load` | `1% if redeemed within 1Y` | "The Exit Load for HDFC Mid-Cap Opportunities Fund is: 1% if redeemed within 1Y." |
+| `fund_managers` | `[{"person_name": "Chirag Setalvad"}]` | "The Fund Managers for HDFC Mid-Cap Opportunities Fund are Chirag Setalvad." |
+
+**Why Natural Language over Raw JSON?** Embedding models (including `gemini-embedding-001`) are trained on natural language corpora. Feeding them structured JSON like `{"nav": 62.45}` produces poor-quality vectors with low semantic overlap to user queries like *"What is the NAV?"*. The translation step ensures high cosine similarity between queries and stored facts.
+
+### 3.3 Chunking Strategy
+After factual translation, documents are split using LangChain's `RecursiveCharacterTextSplitter` with carefully tuned parameters:
+
+| Parameter | Value | Rationale |
+| :--- | :--- | :--- |
+| **Chunk Size** | **800 characters** | Sized to fit a complete fund's fact block (~7-10 factual sentences) within a single chunk. Prevents splitting a fund's NAV from its expense ratio into different chunks, which would break retrieval coherence. |
+| **Chunk Overlap** | **100 characters** | ~12.5% overlap ensures fund name context ("Scheme Name: HDFC...") bleeds into adjacent chunks, preventing orphaned facts without a fund identifier. |
+| **Separators** | `["\n\n", "\n", ". ", " ", ""]` | Hierarchical splitting: tries paragraph breaks first (fund boundaries), then line breaks (fact boundaries), then sentence boundaries. Only falls back to word/character splitting as a last resort. |
+
+```mermaid
+graph TD
+    A["Translated Fact Block\n~1200 chars"] --> B{"chunk_size > 800?"}
+    B -->|Yes| C["Split at \\n\\n\n(paragraph boundary)"]
+    B -->|No| D["Keep as single chunk"]
+    C --> E["Chunk 1: 750 chars\n(Fund basics + NAV + AUM)"]
+    C --> F["Chunk 2: 550 chars\n(Exit Load + Tax + Managers)\n← 100 char overlap includes fund name"]
+    
+    style A fill:#1e1e1e,stroke:#00D09C,color:#fff
+    style E fill:#388e3c,color:#fff
+    style F fill:#388e3c,color:#fff
+```
+
+### 3.4 Content Quality Gate
+Before indexing, every document must pass two filters:
+*   **Minimum Length:** Documents under **100 characters** are rejected (catches empty scrapes and error pages).
+*   **Financial Keyword Validation:** At least one domain keyword (`nav`, `expense`, `sip`, `exit load`, `aum`, `fund size`, `benchmark`, `riskometer`, `returns`, `portfolio`, `holdings`) must be present — ensures only genuine fund data enters the vector store.
+
+### 3.5 Metadata Enrichment
+Every chunk carries rich metadata for source attribution and stale-data management:
+
+| Metadata Field | Source | Purpose |
+| :--- | :--- | :--- |
+| `source` | URL Registry | Powers `**Source:** <url>` citation in responses |
+| `scheme_name` | URL Registry | Enables scheme-level queries and deduplication |
+| `scheme_id` | URL Registry | Used by Clean Mirror protocol to purge stale vectors |
+| `last_updated` | Scraped `nav_date` | Displayed as "Last updated: \<date\>" in responses |
+| `content_hash` | SHA-256 of content | Deduplication — skip re-indexing if data unchanged |
+| `amc` | URL Registry | Future: multi-AMC filtering |
 
 ---
 
-## Phase 4: Vectorization & Memory Storage
-Processing facts into searchable math (vectors) and managing volatility.
+## Phase 4: Embedding & Vectorization Strategy
+Processing factual chunks into searchable 768-dimensional vectors and managing index volatility.
 
-### 4.1 Architecture
+### 4.1 Embedding Model Specification
+
+| Property | Value |
+| :--- | :--- |
+| **Model** | `gemini-embedding-001` (Google Cloud API) |
+| **Dimensions** | 768 |
+| **Max Input** | 2,048 tokens per chunk |
+| **API Type** | Cloud-hosted (zero local compute) |
+| **Latency** | ~50ms per embedding call |
+
+The embedding model converts each text chunk into a 768-dimensional dense vector. At query time, the user's question is embedded with the **same model**, and cosine similarity identifies the most relevant fact chunks.
+
+### 4.2 Indexing Architecture
 ```mermaid
 sequenceDiagram
     participant Chunker
+    participant Dedup as SHA-256 Dedup
+    participant CleanMirror as Clean Mirror Protocol
     participant Google_Cloud_Embed
     participant ChromaDB
     
-    Note over ChromaDB: Daily Purge Executed (Stale Data Wipe)
+    Chunker->>Dedup: All fact chunks
+    Dedup-->>Dedup: Compare hashes vs previous run
+    Dedup->>CleanMirror: Changed documents only
     
-    Chunker->>Google_Cloud_Embed: Batched Fact Sentences
+    Note over CleanMirror: Purge stale vectors by scheme_id
+    
+    CleanMirror->>Google_Cloud_Embed: Batched fact sentences (batch_size=30)
     Google_Cloud_Embed-->>Google_Cloud_Embed: API-Based Vectorization (768D)
-    Google_Cloud_Embed->>ChromaDB: Indexed Insert (Vector + Document + Source)
-    ChromaDB->>Disk: Build In-Memory RAM or Disk Persist
+    Google_Cloud_Embed->>ChromaDB: Indexed Insert (Vector + Document + Metadata)
+    ChromaDB->>ChromaDB: In-Memory (Prod) or Disk Persist (Dev)
 ```
 
-### 4.2 "Why X over Y?"
+### 4.3 Clean Mirror Protocol
+To prevent stale data (e.g., yesterday's NAV appearing alongside today's), every ingestion run executes a **per-scheme purge** before re-indexing:
+1.  For each updated fund, `vector_store.delete(where={"scheme_id": sid})` removes all existing chunks for that scheme.
+2.  Fresh chunks are then inserted, ensuring the vector store is an exact mirror of the latest scraped data.
+3.  After indexing, the retriever cache is invalidated (`invalidate_retriever_cache()`) to force BM25 and vector index rebuilds on the next query.
+
+### 4.4 SHA-256 Content Deduplication
+Every scraped document's content is hashed with SHA-256. If a fund's hash matches the previous run's hash, it is **skipped entirely** — no embedding API calls, no vector store writes. This saves API quota and prevents unnecessary index churn during periods of unchanged NAV data (weekends, holidays).
+
+### 4.5 Batched Indexing
+Chunks are indexed in **batches of 30** to:
+*   Avoid exceeding Google Cloud API rate limits on embedding generation.
+*   Prevent ChromaDB transaction timeouts on large inserts.
+*   Enable granular error recovery — a failed batch doesn't roll back successfully indexed chunks.
+
+### 4.6 "Why X over Y?"
 | Evaluated Options | Dimensions | Deployment Impact | Verdict |
 | :--- | :--- | :--- | :--- |
-| **Google Cloud (`gemini-embedding-001`)** | **768** | **None (Cloud API)** | **Selected:** Essential for production. Eliminates Rust compilation issues on Render and keeps Local RAM usage at zero during embedding. |
+| **Google Cloud (`gemini-embedding-001`)** | **768** | **None (Cloud API)** | **Selected:** Essential for production. Eliminates Rust compilation issues on Render and keeps local RAM usage at zero during embedding. |
 | **BGE-Small (FastEmbed)** | 384 | Heavy (Rust/ONNX overhead) | **Rejected:** Triggered build failures on restricted cloud environments due to lack of the Rust compiler. |
+| **OpenAI `text-embedding-3-small`** | 1536 | None (Cloud API) | **Not evaluated:** Would introduce a second API vendor dependency. Gemini embeddings are included in the same API key as the LLM. |
 
 ---
 
